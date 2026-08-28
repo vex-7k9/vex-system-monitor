@@ -134,23 +134,23 @@ QtObject {
       "LANG=C",
       "{",
       "  read -r _ u n s i io irq so < /proc/stat; echo cpu $u $n $s $i $io $irq $so",
-      "  read -r cur < /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null || cur=NA",
-      "  read -r cmax < /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null || cmax=NA",
-      "  read -r ctemp < " + root.cpuTempPath + " 2>/dev/null || ctemp=NA",
+      "  read -r cur < /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq || cur=NA; echo cur=$cur",
+      "  read -r cmax < /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq || cmax=NA; echo cmax=$cmax",
+      "  read -r ctemp < " + root.cpuTempPath + " || ctemp=NA; echo ctemp=$ctemp",
       "  echo mem=$(/usr/bin/awk '/^(MemTotal|MemAvailable|SwapTotal|SwapFree):/ {print $1, $2}' /proc/meminfo)",
-      "  read -r gact < /sys/class/drm/card0/device/tile0/gt0/freq0/act_freq 2>/dev/null || gact=NA",
-      "  read -r gmax < /sys/class/drm/card0/device/tile0/gt0/freq0/max_freq 2>/dev/null || gmax=NA",
-      "  read -r gidle < /sys/class/drm/card0/device/tile0/gt0/gtidle/idle_residency_ms 2>/dev/null || gidle=NA"
+      "  read -r gact < /sys/class/drm/card0/device/tile0/gt0/freq0/act_freq || gact=NA; echo gact=$gact",
+      "  read -r gmax < /sys/class/drm/card0/device/tile0/gt0/freq0/max_freq || gmax=NA; echo gmax=$gmax",
+      "  read -r gidle < /sys/class/drm/card0/device/tile0/gt0/gtidle/idle_residency_ms || gidle=NA; echo gidle=$gidle"
     ]
     if (!root.hwDetected || (root.hasNvidia && root.tickCount % root.nvsmiEveryTicks === 0)) {
       lines.push("  echo nvsmi=$(/usr/bin/nvidia-smi --query-gpu=utilization.gpu,clocks.current.graphics,clocks.max.graphics,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits 2>/dev/null || echo NA)")
     }
     lines = lines.concat([
-      "  read -r nbusy < /sys/class/accel/accel0/device/npu_busy_time_us 2>/dev/null || nbusy=NA",
-      "  read -r nstat < /sys/class/accel/accel0/device/power/runtime_status 2>/dev/null || nstat=NA",
-      "  read -r ncur < /sys/class/accel/accel0/device/npu_current_frequency_mhz 2>/dev/null || ncur=NA",
-      "  read -r nmax < /sys/class/accel/accel0/device/npu_max_frequency_mhz 2>/dev/null || nmax=NA",
-      "  read -r nmem < /sys/class/accel/accel0/device/npu_memory_utilization 2>/dev/null || nmem=NA",
+      "  read -r nbusy < /sys/class/accel/accel0/device/npu_busy_time_us || nbusy=NA; echo nbusy=$nbusy",
+      "  read -r nstat < /sys/class/accel/accel0/device/power/runtime_status || nstat=NA; echo nstat=$nstat",
+      "  read -r ncur < /sys/class/accel/accel0/device/npu_current_frequency_mhz || ncur=NA; echo ncur=$ncur",
+      "  read -r nmax < /sys/class/accel/accel0/device/npu_max_frequency_mhz || nmax=NA; echo nmax=$nmax",
+      "  read -r nmem < /sys/class/accel/accel0/device/npu_memory_utilization || nmem=NA; echo nmem=$nmem",
       "  echo disk=$(/usr/bin/df -P / | /usr/bin/awk 'NR==2 {print $2, $3, $4, $5}')",
       "} 2>/dev/null"
     ])
