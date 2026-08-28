@@ -54,8 +54,15 @@ QtObject {
   property real prevNpuBusy: -1
   property real prevNpuWall: 0
 
+  // ---- hardware model detection ----
+  property string cpuModel: ""
+  property string gpuModel: ""
+  property int cpuTjMax: 95   // default AMD TjMax
+  property int gpuTjMax: 93   // default NVIDIA TjMax
+
   function refresh() {
     if (!pollProc.running) pollProc.running = true
+    if (!hwDetectProc.running) hwDetectProc.running = true
   }
 
   // QtObject has no default property in this Qt, so the Timer and Process are
@@ -138,6 +145,82 @@ QtObject {
   }
 
   Component.onCompleted: clockProc.running = true
+
+  // ---- hardware detection script ----
+  readonly property string hwDetectScript: [
+    "LANG=C",
+    "{",
+    "  echo cpumodel=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs)",
+    "  echo gpumodel=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo NA)",
+    "}"
+  ].join("\n")
+
+  property Process hwDetectProc: Process {
+    command: ["sh", "-c", root.hwDetectScript]
+    stdout: StdioCollector {
+      id: hwDetectOutput
+      waitForEnd: true
+      onStreamFinished: root.parseHwDetect(hwDetectOutput.text)
+    }
+  }
+
+  function parseHwDetect(text) {
+    const raw = {}
+    const lines = (text || "").split("\n")
+    for (const line of lines) {
+      const i = line.indexOf("=")
+      if (i < 0) continue
+      raw[line.slice(0, i)] = line.slice(i + 1)
+    }
+    root.cpuModel = String(raw.cpumodel || "").trim()
+    root.gpuModel = String(raw.gpumodel || "").trim()
+    root.cpuTjMax = detectCpuTjMax(root.cpuModel)
+    root.gpuTjMax = detectGpuTjMax(root.gpuModel)
+  }
+
+  // CPU TjMax lookup by model family/name
+  function detectCpuTjMax(model) {
+    var m = model.toLowerCase()
+    // AMD Ryzen 7000/9000 series (Zen 4/5) - 95°C TjMax
+    if (m.includes("ryzen 9") || m.includes("ryzen 7") || m.includes("ryzen 5")) {
+      if (m.includes("7") || m.includes("9") || m.includes("5")) return 95
+    }
+    // AMD Ryzen 5000 series (Zen 3) - 90°C TjMax
+    if (m.includes("5600") || m.includes("5700") || m.includes("5800") || m.includes("5900") || m.includes("5950")) return 90
+    // AMD Ryzen 3000 series (Zen 2) - 95°C TjMax
+    if (m.includes("3") && m.includes("ryzen")) return 95
+    // Intel 12th-14th gen - 100°C TjMax
+    if (m.includes("i9") || m.includes("i7") || m.includes("i5") || m.includes("i3")) {
+      if (m.includes("12") || m.includes("13") || m.includes("14") || m.includes("ultra")) return 100
+    }
+    // Intel Arrow Lake (Core Ultra 200S) - 105°C TjMax
+    if (m.includes("ultra") && m.includes("2")) return 105
+    // Intel older gen - 100°C TjMax
+    if (m.includes("intel") || m.includes("core")) return 100
+    // Default
+    return 95
+  }
+
+  // GPU TjMax lookup by model
+  function detectGpuTjMax(model) {
+    var m = model.toLowerCase()
+    // NVIDIA RTX 40/50 series - 83°C target, 90°C throttle
+    if (m.includes("40") || m.includes("50")) return 83
+    // NVIDIA RTX 30 series - 83°C target, 93°C throttle
+    if (m.includes("30")) return 83
+    // NVIDIA RTX 20 series - 84°C target, 88°C throttle
+    if (m.includes("20")) return 84
+    // NVIDIA GTX 16 series - 83°C target
+    if (m.includes("16")) return 83
+    // NVIDIA older - 85°C target
+    if (m.includes("gtx") || m.includes("nvidia")) return 85
+    // AMD RDNA 3 (RX 7000) - 85°C target, 110°C hotspot
+    if (m.includes("7")) return 85
+    // AMD RDNA 2 (RX 6000) - 80°C target, 110°C hotspot
+    if (m.includes("6")) return 80
+    // Default
+    return 85
+  }
 
   function parse(text) {
     const raw = {}

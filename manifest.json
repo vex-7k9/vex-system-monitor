@@ -183,37 +183,37 @@
       "key": "cpuTempCool",
       "type": "number",
       "label": "CPU Temp Cool (°C)",
-      "description": "CPU temperature for green color (idle)",
+      "description": "CPU temperature for green color (auto-detected from hardware if not set)",
       "min": 30,
       "max": 60,
-      "default": 45
+      "default": null
     },
     {
       "key": "cpuTempHot",
       "type": "number",
       "label": "CPU Temp Hot (°C)",
-      "description": "CPU temperature for red color (throttle)",
+      "description": "CPU temperature for red color (auto-detected from hardware if not set)",
       "min": 70,
-      "max": 100,
-      "default": 85
+      "max": 110,
+      "default": null
     },
     {
       "key": "gpuTempCool",
       "type": "number",
       "label": "GPU Temp Cool (°C)",
-      "description": "GPU temperature for green color (idle)",
+      "description": "GPU temperature for green color (auto-detected from hardware if not set)",
       "min": 30,
       "max": 60,
-      "default": 45
+      "default": null
     },
     {
       "key": "gpuTempHot",
       "type": "number",
       "label": "GPU Temp Hot (°C)",
-      "description": "GPU temperature for red color (throttle)",
+      "description": "GPU temperature for red color (auto-detected from hardware if not set)",
       "min": 70,
-      "max": 100,
-      "default": 80
+      "max": 110,
+      "default": null
     }
   ]
 }

@@ -20,10 +20,11 @@ BarWidget {
   readonly property int diskThreshold: root.setting("diskThreshold", 90)
 
   // -- temp color scale (green -> amber -> red across the thermal envelope). --
-  readonly property int cpuTempCool: root.setting("cpuTempCool", 45)
-  readonly property int cpuTempHot:  root.setting("cpuTempHot", 85)
-  readonly property int gpuTempCool: root.setting("gpuTempCool", 45)
-  readonly property int gpuTempHot:  root.setting("gpuTempHot", 80)
+  // Uses detected TjMax from hardware, with user override via settings.
+  readonly property int cpuTempCool: root.setting("cpuTempCool", Math.max(40, stats.cpuTjMax - 50))
+  readonly property int cpuTempHot:  root.setting("cpuTempHot", stats.cpuTjMax)
+  readonly property int gpuTempCool: root.setting("gpuTempCool", Math.max(40, stats.gpuTjMax - 45))
+  readonly property int gpuTempHot:  root.setting("gpuTempHot", stats.gpuTjMax)
 
   // -- color mode: "theme" = Omarchy accent/urgent, "custom" = green/red gradient --
   readonly property string colorMode: root.setting("colorMode", "theme")
@@ -377,6 +378,31 @@ BarWidget {
         font.family: root.fam
         font.pixelSize: Style.font.bodySmall
         color: fans.hasDeadFan ? Color.urgent : root.normalColor
+      }
+
+      // ---- Hardware info section ----
+      PanelSeparator { foreground: root.normalColor }
+
+      Text {
+        width: parent.width
+        text: stats.cpuModel ? "CPU: " + stats.cpuModel : "CPU: detecting..."
+        font.family: root.fam
+        font.pixelSize: Style.font.bodySmall
+        color: Util.alpha(root.normalColor, 0.6)
+      }
+      Text {
+        width: parent.width
+        text: stats.gpuModel ? "GPU: " + stats.gpuModel : "GPU: none detected"
+        font.family: root.fam
+        font.pixelSize: Style.font.bodySmall
+        color: Util.alpha(root.normalColor, 0.6)
+      }
+      Text {
+        width: parent.width
+        text: "Thermal limits: CPU " + stats.cpuTjMax + "°C / GPU " + stats.gpuTjMax + "°C"
+        font.family: root.fam
+        font.pixelSize: Style.font.bodySmall
+        color: Util.alpha(root.normalColor, 0.6)
       }
 
       // ---- thermal envelope reference (hover tooltip). ----

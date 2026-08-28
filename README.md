@@ -4,10 +4,11 @@ A consolidated system monitor for [Omarchy](https://omarchy.org/) that merges th
 
 ## Features
 
+- **Hardware autodetection** — CPU/GPU models and thermal limits detected automatically
+- **Dynamic temperature thresholds** — Sets correct TjMax based on your hardware
 - **CPU/GPU/NPU/RAM/Swap/Disk meters** — live usage percentages in the bar
 - **Temperature monitoring** — CPU and GPU temps with color-coded thermal envelope
 - **Fan monitoring** — live RPM via lm_sensors
-- **Hardware autodetection** — GPU/NPU/fans auto-hide when unavailable
 - **Modular settings** — toggle each meter on/off for bar and hover card separately
 - **Theme integration** — uses Omarchy's accent/urgent colors or custom green/red gradient
 - **Settings GUI** — gear icon in hover card for quick configuration
@@ -25,6 +26,9 @@ Click the gear icon (⚙) in the hover card to access settings:
 - **Colors**: Theme (Omarchy accent/urgent) or Custom (green/red gradient)
 - **Bar/Card toggles**: Choose which meters appear in the bar vs hover card only
 - **Thresholds**: CPU/GPU/RAM/Swap/Disk warning levels
+- **Temperature gradient**: Auto-detected from hardware, or manually override
+
+**Hardware Detection**: The plugin automatically detects your CPU and GPU models and sets appropriate thermal limits (TjMax). Hover over the widget to see detected hardware and thermal limits.
 
 ## Hardware Temperature Reference
 
