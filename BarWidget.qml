@@ -273,6 +273,12 @@ BarWidget {
         Text { width: Style.space(76); text: "Used"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
         Text { width: Style.space(76); text: "Free"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
         Text { width: Style.space(76); text: "Total"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+      }
+
+      // gear icon - left aligned above CPU
+      Row {
+        width: parent.width
+        spacing: 0
         Text {
           width: Style.space(24)
           text: "\u2699"
