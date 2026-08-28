@@ -26,6 +26,24 @@ Click the gear icon (⚙) in the hover card to access settings:
 - **Bar/Card toggles**: Choose which meters appear in the bar vs hover card only
 - **Thresholds**: CPU/GPU/RAM/Swap/Disk warning levels
 
+## Hardware Temperature Reference
+
+Use these ranges to set your thermal gradient (cool/hot) values:
+
+| State | CPU | GPU | What It Means |
+|-------|-----|-----|---------------|
+| Idle | 30–50°C | 30–45°C | Normal — fans may stop on GPUs |
+| Light work | 50–65°C | 45–60°C | Browsing, office work |
+| Gaming | 65–85°C | 60–80°C | Normal under load |
+| Heavy load | 85–95°C | 80–87°C | Check airflow |
+| Throttle | 95–100°C+ | 88–95°C+ | Chip slows itself to survive |
+
+**Default gradient values**: CPU cool=45/hot=85, GPU cool=45/hot=80
+
+**AMD Ryzen**: TjMax is 95°C (including 9800X3D/9950X3D)
+**Intel**: TjMax is 100–105°C (Arrow Lake: 105°C)
+**NVIDIA GPUs**: Designed to sit near 83–87°C at fan curve equilibrium
+
 ## Credits
 
 This plugin consolidates features from these excellent community projects:
