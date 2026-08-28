@@ -257,13 +257,6 @@ BarWidget {
       Style.space(84 + 52 + 64 + 52 + 76 * 3) + Style.spacing.popupPadding * 2 + Style.space(8))
     contentHeight: popup.fittedContentHeight(details.implicitHeight)
 
-    // Background: black (custom) or Omarchy theme background
-    Rectangle {
-      anchors.fill: parent
-      color: root.useThemeColors ? Color.background : "#000000"
-      z: -1
-    }
-
     Column {
       id: details
       width: parent.width
