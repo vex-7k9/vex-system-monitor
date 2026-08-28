@@ -196,6 +196,8 @@ BarWidget {
 
   function pickCardBackground() {
     if (root.cardBgPicker.running) return
+    root.popupOpen = false
+    root.settingsOpen = false
     root.cardBgPicker.command = ["bash", root.cardBgPickerScript, String(root.cardBackgroundPath || "")]
     root.cardBgPicker.running = true
   }
@@ -387,7 +389,7 @@ BarWidget {
     anchorItem: root
     bar: root.bar
     owner: root
-    open: root.popupOpen
+    open: root.popupOpen && !root.cardBgPicker.running
     contentWidth: popup.fittedContentWidth(
       Style.space(84 + 52 + 64 + 52 + 76 * 3) + Style.spacing.popupPadding * 2 + Style.space(8))
     contentHeight: popup.fittedContentHeight(details.implicitHeight)
