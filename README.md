@@ -15,7 +15,7 @@ A consolidated system monitor for [Omarchy](https://omarchy.org/) that merges th
 ## Installation
 
 ```bash
-omarchy plugin add https://github.com/jd/vex-system-monitor.git
+omarchy plugin add https://github.com/vex-7k9/vex-system-monitor.git
 ```
 
 ## Configuration
