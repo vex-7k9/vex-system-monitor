@@ -52,6 +52,8 @@ Use these ranges to set your thermal gradient (cool/hot) values:
 
 ## Credits
 
+Built with assistance from [Big Pickle](https://opencode.ai) (opencode/big-pickle), an AI coding agent, under the `vex` project.
+
 This plugin consolidates features from these excellent community projects:
 
 | Plugin | Author | License | Link |
@@ -77,3 +79,38 @@ MIT License — see individual credits above for original authors.
 - [Omarchy](https://omarchy.org/) with QuickShell
 - lm-sensors (for fan monitoring)
 - nvidia-smi (for NVIDIA GPU monitoring)
+
+## Development
+
+This plugin is meant to be used, forked, and improved. Everything lives in one directory, no build step — clone it, tweak it, and send a PR back. Discussion thread: [marketplace submission #3142](https://github.com/HANCORE-linux/omarchy-plugin-marketplace/issues/3142).
+
+**Run from a checkout:**
+
+```bash
+git clone https://github.com/vex-7k9/vex-system-monitor.git ~/.config/omarchy/plugins/vex-system-monitor
+omarchy restart shell
+```
+
+The plugin must sit in `~/.config/omarchy/plugins/vex-system-monitor/` (the widget id and folder name must match).
+
+**Layout:**
+
+- `manifest.json` — plugin id, kind (`bar-widget`), display name, version
+- `BarWidget.qml` — the widget: meters, hover card, settings GUI, card background
+- `StatsService.qml` — snapshot script (sysfs + nvidia-smi + meminfo) and parsing to properties
+- `FanService.qml` — lm_sensors fan polling
+- `ThermalData.js` — hardware → thermal envelope reference table (`detectCpu`/`detectGpu`)
+- `MeterText.qml` / `DetailRow.qml` — bar meter and hover-card row rendering
+- `card-bg-picker.sh` — thin wrapper around `omarchy-menu-images` for the card carousel
+- `preview.png` — marketplace preview (root-level convention)
+
+**Settings:** user overrides live in the entry's inline `shell.json` block. `BarWidget._settingKeys` is the schema allowlist; `migrateSettings()` drops stale keys and stamps `settingsVersion` on load. Because the bar host injects `settings` asynchronously after `Component.onCompleted`, migration also re-runs from `onSettingsChanged` — keep it idempotent (never reassign `root.settings` when nothing changed).
+
+**Iterating:**
+
+```bash
+omarchy restart shell
+journalctl --user --since "20 seconds ago" --no-pager | grep -iE "vex-system-monitor" | grep -viE "labelGlyph"
+```
+
+Known non-fatal warnings on load: `Unable to assign [undefined] to QString` (unused icon glyphs). New settings are additive — add them to `_settingKeys` and bump `settingsVersion` on breaking changes.
