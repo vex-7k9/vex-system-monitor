@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "id": "jd.vex-system-monitor",
+  "name": "Vex System Monitor",
+  "version": "1.0.0",
+  "author": "jd",
+  "license": "MIT",
+  "description": "Consolidated system monitor with CPU/GPU/RAM/Swap/Disk meters, fan monitoring, thermal envelope with color gradient, and hardware autodetection. Features a settings GUI with gear icon for modular feature toggles.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "settings": [
+    {
+      "key": "colorMode",
+      "type": "enum",
+      "label": "Color Mode",
+      "description": "Theme uses Omarchy accent/urgent colors, Custom uses green/red gradient",
+      "options": [
+        { "value": "theme", "label": "Theme" },
+        { "value": "custom", "label": "Custom" }
+      ],
+      "default": "theme"
+    },
+    {
+      "key": "updateInterval",
+      "type": "number",
+      "label": "Update Interval (ms)",
+      "description": "Polling frequency in milliseconds (500-60000)",
+      "min": 500,
+      "max": 60000,
+      "default": 3000
+    },
+    {
+      "key": "showCpu",
+      "type": "enum",
+      "label": "CPU Meter",
+      "description": "Show/hide CPU usage meter",
+      "options": [
+        { "value": "Auto", "label": "Auto (show if available)" },
+        { "value": "Show", "label": "Show" },
+        { "value": "Hide", "label": "Hide" }
+      ],
+      "default": "Auto"
+    },
+    {
+      "key": "showGpu",
+      "type": "enum",
+      "label": "GPU Meter",
+      "description": "Show/hide GPU usage meter",
+      "options": [
+        { "value": "Auto", "label": "Auto (show if available)" },
+        { "value": "Show", "label": "Show" },
+        { "value": "Hide", "label": "Hide" }
+      ],
+      "default": "Auto"
+    },
+    {
+      "key": "showNpu",
+      "type": "enum",
+      "label": "NPU Meter",
+      "description": "Show/hide NPU usage meter",
+      "options": [
+        { "value": "Auto", "label": "Auto (show if available)" },
+        { "value": "Show", "label": "Show" },
+        { "value": "Hide", "label": "Hide" }
+      ],
+      "default": "Auto"
+    },
+    {
+      "key": "showRam",
+      "type": "enum",
+      "label": "RAM Meter",
+      "description": "Show/hide RAM usage meter",
+      "options": [
+        { "value": "Auto", "label": "Auto (show if available)" },
+        { "value": "Show", "label": "Show" },
+        { "value": "Hide", "label": "Hide" }
+      ],
+      "default": "Auto"
+    },
+    {
+      "key": "showSwap",
+      "type": "enum",
+      "label": "Swap Meter",
+      "description": "Show/hide Swap usage meter",
+      "options": [
+        { "value": "Auto", "label": "Auto (show if available)" },
+        { "value": "Show", "label": "Show" },
+        { "value": "Hide", "label": "Hide" }
+      ],
+      "default": "Auto"
+    },
+    {
+      "key": "showDisk",
+      "type": "enum",
+      "label": "Disk Meter",
+      "description": "Show/hide Disk usage meter",
+      "options": [
+        { "value": "Auto", "label": "Auto (show if available)" },
+        { "value": "Show", "label": "Show" },
+        { "value": "Hide", "label": "Hide" }
+      ],
+      "default": "Auto"
+    },
+    {
+      "key": "showFans",
+      "type": "enum",
+      "label": "Fan Monitor",
+      "description": "Show/hide fan speed monitor (requires lm_sensors)",
+      "options": [
+        { "value": "Auto", "label": "Auto (show if available)" },
+        { "value": "Show", "label": "Show" },
+        { "value": "Hide", "label": "Hide" }
+      ],
+      "default": "Auto"
+    },
+    {
+      "key": "showThermals",
+      "type": "enum",
+      "label": "Thermal Envelope",
+      "description": "Show/hide thermal envelope reference (Idle/Load/Peak/Now)",
+      "options": [
+        { "value": "Auto", "label": "Auto (show if available)" },
+        { "value": "Show", "label": "Show" },
+        { "value": "Hide", "label": "Hide" }
+      ],
+      "default": "Auto"
+    },
+    {
+      "key": "cpuThreshold",
+      "type": "number",
+      "label": "CPU Warning Threshold (%)",
+      "description": "CPU usage percentage to trigger warning color",
+      "min": 50,
+      "max": 100,
+      "default": 90
+    },
+    {
+      "key": "gpuThreshold",
+      "type": "number",
+      "label": "GPU Warning Threshold (%)",
+      "description": "GPU usage percentage to trigger warning color",
+      "min": 50,
+      "max": 100,
+      "default": 95
+    },
+    {
+      "key": "npuThreshold",
+      "type": "number",
+      "label": "NPU Warning Threshold (%)",
+      "description": "NPU usage percentage to trigger warning color",
+      "min": 50,
+      "max": 100,
+      "default": 95
+    },
+    {
+      "key": "memoryThreshold",
+      "type": "number",
+      "label": "Memory Warning Threshold (%)",
+      "description": "Memory usage percentage to trigger warning color",
+      "min": 50,
+      "max": 100,
+      "default": 95
+    },
+    {
+      "key": "swapThreshold",
+      "type": "number",
+      "label": "Swap Warning Threshold (%)",
+      "description": "Swap usage percentage to trigger warning color",
+      "min": 50,
+      "max": 100,
+      "default": 85
+    },
+    {
+      "key": "diskThreshold",
+      "type": "number",
+      "label": "Disk Warning Threshold (%)",
+      "description": "Disk usage percentage to trigger warning color",
+      "min": 50,
+      "max": 100,
+      "default": 90
+    },
+    {
+      "key": "cpuTempCool",
+      "type": "number",
+      "label": "CPU Temp Cool (°C)",
+      "description": "CPU temperature for green color (idle)",
+      "min": 30,
+      "max": 60,
+      "default": 45
+    },
+    {
+      "key": "cpuTempHot",
+      "type": "number",
+      "label": "CPU Temp Hot (°C)",
+      "description": "CPU temperature for red color (throttle)",
+      "min": 70,
+      "max": 100,
+      "default": 85
+    },
+    {
+      "key": "gpuTempCool",
+      "type": "number",
+      "label": "GPU Temp Cool (°C)",
+      "description": "GPU temperature for green color (idle)",
+      "min": 30,
+      "max": 60,
+      "default": 45
+    },
+    {
+      "key": "gpuTempHot",
+      "type": "number",
+      "label": "GPU Temp Hot (°C)",
+      "description": "GPU temperature for red color (throttle)",
+      "min": 70,
+      "max": 100,
+      "default": 80
+    }
+  ]
+}

@@ -1,0 +1,673 @@
+import QtQuick
+import qs.Ui
+import qs.Commons
+import "Format.js" as Fmt
+
+// Vex System Monitor — consolidated system monitor with CPU/GPU/RAM/Swap/Disk
+// meters, fan monitoring, thermal envelope, and hardware autodetection.
+// Features a settings GUI with gear icon in the hover card.
+BarWidget {
+  id: root
+  moduleName: "jd.vex-system-monitor"
+
+  // ---- settings (inline shell.json entry; fallback = manifest defaults) ----
+  readonly property int updateIntervalMs: Math.max(500, root.setting("updateInterval", 3000))
+  readonly property int cpuThreshold: root.setting("cpuThreshold", 90)
+  readonly property int gpuThreshold: root.setting("gpuThreshold", 95)
+  readonly property int npuThreshold: root.setting("npuThreshold", 95)
+  readonly property int memoryThreshold: root.setting("memoryThreshold", 95)
+  readonly property int swapThreshold: root.setting("swapThreshold", 85)
+  readonly property int diskThreshold: root.setting("diskThreshold", 90)
+
+  // -- temp color scale (green -> amber -> red across the thermal envelope). --
+  readonly property int cpuTempCool: root.setting("cpuTempCool", 45)
+  readonly property int cpuTempHot:  root.setting("cpuTempHot", 85)
+  readonly property int gpuTempCool: root.setting("gpuTempCool", 45)
+  readonly property int gpuTempHot:  root.setting("gpuTempHot", 80)
+
+  // -- color mode: "theme" = Omarchy accent/urgent, "custom" = green/red gradient --
+  readonly property string colorMode: root.setting("colorMode", "theme")
+  readonly property bool useThemeColors: root.colorMode === "theme"
+
+  // -- feature toggles (modular settings) --
+  // Bar visibility: "show" = always in bar, "hide" = not in bar
+  readonly property bool showCpu: root.meterVisible(true, "showCpu")
+  readonly property bool showGpu: root.meterVisible(stats.gpuAvailable, "showGpu")
+  readonly property bool showNpu: root.meterVisible(stats.npuAvailable, "showNpu")
+  readonly property bool showRam: root.meterVisible(true, "showRam")
+  readonly property bool showSwap: root.meterVisible(stats.swapTotalKb > 0, "showSwap")
+  readonly property bool showDisk: root.meterVisible(true, "showDisk")
+  readonly property bool showFans: root.meterVisible(fans.loaded && fans.fans.length > 0, "showFans")
+  readonly property bool showThermals: root.meterVisible(true, "showThermals")
+
+  // Card visibility: "show" = in hover card, "hide" = not in hover card
+  readonly property bool showCpuCard: root.meterVisible(true, "showCpuCard")
+  readonly property bool showGpuCard: root.meterVisible(stats.gpuAvailable, "showGpuCard")
+  readonly property bool showNpuCard: root.meterVisible(stats.npuAvailable, "showNpuCard")
+  readonly property bool showRamCard: root.meterVisible(true, "showRamCard")
+  readonly property bool showSwapCard: root.meterVisible(stats.swapTotalKb > 0, "showSwapCard")
+  readonly property bool showDiskCard: root.meterVisible(true, "showDiskCard")
+  readonly property bool showFansCard: root.meterVisible(fans.loaded && fans.fans.length > 0, "showFansCard")
+  readonly property bool showThermalsCard: root.meterVisible(true, "showThermalsCard")
+
+  // Interpolate across [cool, hot]: <= cool is green(120°), >= hot is red(0°).
+  function tempColor(t, cool, hot) {
+    var k = Math.min(1, Math.max(0, (t - cool) / Math.max(0.001, hot - cool)))
+    var h = 120 - k * 120
+    var l = 55 - k * 10
+    return Qt.hsla(h / 360, 0.75, l / 100, 1)
+  }
+  readonly property color cpuTempColor: root.tempColor(stats.cpuTempC, root.cpuTempCool, root.cpuTempHot)
+  readonly property color gpuTempColor: root.tempColor(stats.gpuTempC, root.gpuTempCool, root.gpuTempHot)
+
+  // ---- theme ----
+  readonly property color normalColor: root.bar ? root.bar.barForeground : Color.foreground
+  readonly property color warnColor: root.bar ? root.bar.urgent : Color.urgent
+  readonly property string fam: root.bar ? root.bar.fontFamily : Style.font.family
+
+  function warn(p, threshold) {
+    return Math.round(p * 100) >= threshold
+  }
+
+  // Per-meter visibility for every show<X> setting: "Show"/"Hide" override
+  // detection, "Auto" (default) shows only when the resource is available on
+  // this hardware.
+  function meterVisible(available, key) {
+    var v = String(root.setting(key, "Auto")).toLowerCase()
+    if (v === "show" || v === "true" || v === "1") return true
+    if (v === "hide" || v === "false" || v === "0") return false
+    return available
+  }
+
+  // ---- display mode: always text ----
+  readonly property real meterFontSize: Style.font.body
+
+  function persistSettings(values) {
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    for (var key in values) entry[key] = values[key]
+    root.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  readonly property real memRatio: stats.memTotalKb > 0 ? stats.memUsedKb / stats.memTotalKb : 0
+  readonly property real swapRatio: stats.swapTotalKb > 0 ? stats.swapUsedKb / stats.swapTotalKb : 0
+
+  // Meter colors: theme mode uses accent/urgent, custom mode uses foreground/warn
+  readonly property color cpuColor: root.useThemeColors ? (root.warn(stats.cpuUsage, root.cpuThreshold) ? Color.urgent : Color.accent) : (root.warn(stats.cpuUsage, root.cpuThreshold) ? root.warnColor : root.normalColor)
+  readonly property color gpuColor: root.useThemeColors ? (root.warn(stats.gpuUsage, root.gpuThreshold) ? Color.urgent : Color.accent) : (root.warn(stats.gpuUsage, root.gpuThreshold) ? root.warnColor : root.normalColor)
+  readonly property color npuColor: root.useThemeColors ? (root.warn(stats.npuUsage, root.npuThreshold) ? Color.urgent : Color.accent) : (root.warn(stats.npuUsage, root.npuThreshold) ? root.warnColor : root.normalColor)
+  readonly property color memColor: root.useThemeColors ? (root.warn(root.memRatio, root.memoryThreshold) ? Color.urgent : Color.accent) : (root.warn(root.memRatio, root.memoryThreshold) ? root.warnColor : root.normalColor)
+  readonly property color swapColor: root.useThemeColors ? (root.warn(root.swapRatio, root.swapThreshold) ? Color.urgent : Color.accent) : (root.warn(root.swapRatio, root.swapThreshold) ? root.warnColor : root.normalColor)
+  readonly property color diskColor: root.useThemeColors ? (root.warn(stats.diskPct / 100, root.diskThreshold) ? Color.urgent : Color.accent) : (root.warn(stats.diskPct / 100, root.diskThreshold) ? root.warnColor : root.normalColor)
+
+  // ---- data services ----
+  property QtObject stats: StatsService {
+    id: svc
+    interval: root.updateIntervalMs
+    enabled: root.visible
+  }
+
+  property QtObject fans: FanService {
+    id: fans
+    enabled: root.visible
+  }
+
+  onSettingsChanged: svc.interval = Math.max(500, root.setting("updateInterval", 3000))
+
+  property bool settingsOpen: false
+
+  // ---- hover open/close with grace period ----
+  readonly property bool rowHovered: rowHover.hovered
+  readonly property bool cardHovered: popup.containsMouse
+  property bool popupOpen: false
+
+  onRowHoveredChanged: {
+    if (root.rowHovered) {
+      closeTimer.stop()
+      root.popupOpen = true
+    } else {
+      closeTimer.restart()
+    }
+  }
+  onCardHoveredChanged: {
+    if (!root.cardHovered && !root.rowHovered) closeTimer.restart()
+  }
+
+  Timer {
+    id: closeTimer
+    interval: 200
+    onTriggered: if (!root.rowHovered && !root.cardHovered) root.popupOpen = false
+  }
+
+  implicitWidth: metersRow.implicitWidth
+  implicitHeight: root.barSize
+
+  // ---- text meters row ----
+  Item {
+    id: metersRow
+    anchors.fill: parent
+    implicitWidth: metersLayout.implicitWidth
+    implicitHeight: root.barSize
+
+    Row {
+      id: metersLayout
+      anchors.centerIn: parent
+      spacing: 0
+
+      Item { width: Style.spaceReal(8); height: 1 }
+
+      MeterText {
+        label: "cpu: " + Fmt.pct01(stats.cpuUsage)
+        temp: stats.cpuTempC > 0 ? " " + Fmt.tempC(stats.cpuTempC) : ""
+        tempColor: root.cpuTempColor
+        warn: root.warn(stats.cpuUsage, root.cpuThreshold)
+        meterFontSize: root.meterFontSize
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        warnColor: root.warnColor
+        barSize: root.barSize
+        visible: root.showCpu
+      }
+      MeterText {
+        label: "gpu: " + Fmt.pct01(stats.gpuUsage)
+        temp: stats.gpuTempC > 0 ? " " + Fmt.tempC(stats.gpuTempC) : ""
+        tempColor: root.gpuTempColor
+        warn: root.warn(stats.gpuUsage, root.gpuThreshold)
+        meterFontSize: root.meterFontSize
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        warnColor: root.warnColor
+        barSize: root.barSize
+        visible: root.showGpu
+      }
+      MeterText {
+        label: "npu: " + Fmt.pct01(stats.npuUsage)
+        warn: root.warn(stats.npuUsage, root.npuThreshold)
+        meterFontSize: root.meterFontSize
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        warnColor: root.warnColor
+        barSize: root.barSize
+        visible: root.showNpu
+      }
+      MeterText {
+        label: "ram: " + Fmt.pct01(root.memRatio)
+        warn: root.warn(root.memRatio, root.memoryThreshold)
+        meterFontSize: root.meterFontSize
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        warnColor: root.warnColor
+        barSize: root.barSize
+        visible: root.showRam
+      }
+      MeterText {
+        label: "swap: " + Fmt.pct01(root.swapRatio)
+        warn: root.warn(root.swapRatio, root.swapThreshold)
+        meterFontSize: root.meterFontSize
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        warnColor: root.warnColor
+        barSize: root.barSize
+        visible: root.showSwap
+      }
+      MeterText {
+        label: "disk: " + Fmt.pct01(stats.diskPct / 100)
+        warn: root.warn(stats.diskPct / 100, root.diskThreshold)
+        meterFontSize: root.meterFontSize
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        warnColor: root.warnColor
+        barSize: root.barSize
+        visible: root.showDisk
+      }
+      MeterText {
+        label: "fan: " + (fans.loaded ? (fans.fans.length > 0 ? fans.fans[0].rpm + " RPM" : "no sensors") : "...")
+        pct: fans.hasDeadFan ? "STOPPED" : ""
+        warn: fans.hasDeadFan
+        meterFontSize: root.meterFontSize
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        warnColor: root.warnColor
+        barSize: root.barSize
+        visible: root.showFans
+      }
+    }
+
+    MouseArea {
+      id: clickArea
+      anchors.fill: parent
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
+      onClicked: root.toggleMode()
+    }
+
+    HoverHandler { id: rowHover }
+  }
+
+  // ---- hover details card ----
+  PopupCard {
+    id: popup
+    anchorItem: root
+    bar: root.bar
+    owner: root
+    open: root.popupOpen
+    contentWidth: popup.fittedContentWidth(
+      Style.space(84 + 52 + 64 + 52 + 76 * 3) + Style.spacing.popupPadding * 2 + Style.space(8))
+    contentHeight: popup.fittedContentHeight(details.implicitHeight)
+
+    Column {
+      id: details
+      width: parent.width
+      spacing: Style.spacing.xs
+
+      // header
+      Row {
+        width: parent.width
+        spacing: 0
+        Text { width: Style.space(84); text: "" }
+        Text { width: Style.space(52); text: "Load"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+        Text { width: Style.space(64); text: "Freq"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+        Text { width: Style.space(52); text: "Temp"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+        Text { width: Style.space(76); text: "Used"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+        Text { width: Style.space(76); text: "Free"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+        Text { width: Style.space(76); text: "Total"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+        Text {
+          width: Style.space(24)
+          text: "\u2699"
+          font.family: root.fam
+          font.pixelSize: Style.font.caption
+          color: root.settingsOpen ? root.normalColor : Util.alpha(root.normalColor, 0.4)
+          horizontalAlignment: Text.AlignLeft
+          verticalAlignment: Text.AlignVCenter
+          height: Style.space(24)
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.settingsOpen = !root.settingsOpen
+          }
+        }
+      }
+
+      PanelSeparator { foreground: root.normalColor }
+
+      DetailRow {
+        visible: root.showCpuCard
+        label: "CPU"
+        labelGlyph: root.cpuGlyph
+        color: root.cpuColor
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        load: Fmt.pct01(stats.cpuUsage)
+        freq: stats.cpuFreqMhz > 0 ? Fmt.mhz(stats.cpuFreqMhz) : "Idle"
+        temp: Fmt.tempC(stats.cpuTempC)
+      }
+      DetailRow {
+        visible: root.showGpuCard
+        label: "GPU"
+        labelGlyph: root.gpuGlyph
+        color: root.gpuColor
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        load: Fmt.pct01(stats.gpuUsage)
+        freq: stats.gpuFreqMhz > 0 ? Fmt.mhz(stats.gpuFreqMhz) : "Idle"
+        temp: Fmt.tempC(stats.gpuTempC)
+        used: stats.gpuMemTotalMb > 0 ? (stats.gpuMemUsedMb).toFixed(0) + " MB" : "—"
+        total: stats.gpuMemTotalMb > 0 ? (stats.gpuMemTotalMb).toFixed(0) + " MB" : "—"
+      }
+      DetailRow {
+        visible: root.showNpuCard
+        label: "NPU"
+        labelGlyph: root.npuGlyph
+        labelGlyphFont: root.faGlyphFont
+        color: root.npuColor
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        load: Fmt.pct01(stats.npuUsage)
+        freq: stats.npuStatus === "suspended" ? "Suspended" : (stats.npuFreqMhz > 0 ? Fmt.mhz(stats.npuFreqMhz) : "Idle")
+        used: stats.npuMemBytes > 0 ? (stats.npuMemBytes / 1048576).toFixed(0) + " MB" : "—"
+      }
+      DetailRow {
+        visible: root.showRamCard
+        label: "RAM"
+        labelGlyph: root.memGlyph
+        labelGlyphFont: root.faGlyphFont
+        color: root.memColor
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        load: Fmt.pct01(root.memRatio)
+        freq: stats.memSpeed || "—"
+        used: Fmt.gb(stats.memUsedKb)
+        free: Fmt.gb(stats.memTotalKb - stats.memUsedKb)
+        total: Fmt.gb(stats.memTotalKb)
+      }
+      DetailRow {
+        visible: root.showSwapCard
+        label: "Swap"
+        labelGlyph: root.swapGlyph
+        color: root.swapColor
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        load: Fmt.pct01(root.swapRatio)
+        used: Fmt.gb(stats.swapUsedKb)
+        free: Fmt.gb(stats.swapTotalKb - stats.swapUsedKb)
+        total: Fmt.gb(stats.swapTotalKb)
+      }
+      DetailRow {
+        visible: root.showDiskCard
+        label: "Disk"
+        labelGlyph: root.diskGlyph
+        color: root.diskColor
+        fontFamily: root.fam
+        normalColor: root.normalColor
+        load: Fmt.pct01(stats.diskPct / 100)
+        freq: stats.diskSpeed || "—"
+        used: Fmt.gb(stats.diskUsedKb)
+        free: Fmt.gb(stats.diskAvailKb)
+        total: Fmt.gb(stats.diskTotalKb)
+      }
+
+      // ---- Fan speeds section ----
+      PanelSeparator { foreground: root.normalColor }
+
+      Text {
+        visible: root.showFansCard
+        width: parent.width
+        text: fans.loaded ? (fans.fans.length > 0 ? "Fan: " + fans.fans[0].rpm + " RPM" : "Fan: no sensors") : "Fan: loading..."
+        font.family: root.fam
+        font.pixelSize: Style.font.bodySmall
+        color: fans.hasDeadFan ? Color.urgent : root.normalColor
+      }
+
+      // ---- thermal envelope reference (hover tooltip). ----
+      PanelSeparator { foreground: root.normalColor }
+
+      Row {
+        visible: root.showThermalsCard
+        width: parent.width
+        spacing: 0
+        Text {
+          width: Style.space(84)
+          text: "Thermals"
+          font.family: root.fam
+          font.pixelSize: Style.font.caption
+          color: Util.alpha(root.normalColor, 0.6)
+          horizontalAlignment: Text.AlignLeft
+        }
+        Text {
+          width: Style.space(52)
+          text: "Idle"
+          font.family: root.fam
+          font.pixelSize: Style.font.caption
+          color: Util.alpha(root.normalColor, 0.6)
+          horizontalAlignment: Text.AlignRight
+        }
+        Text {
+          width: Style.space(64)
+          text: "Load"
+          font.family: root.fam
+          font.pixelSize: Style.font.caption
+          color: Util.alpha(root.normalColor, 0.6)
+          horizontalAlignment: Text.AlignRight
+        }
+        Text {
+          width: Style.space(52)
+          text: "Peak"
+          font.family: root.fam
+          font.pixelSize: Style.font.caption
+          color: Util.alpha(root.normalColor, 0.6)
+          horizontalAlignment: Text.AlignRight
+        }
+        Text {
+          width: Style.space(52)
+          text: "Now"
+          font.family: root.fam
+          font.pixelSize: Style.font.caption
+          color: Util.alpha(root.normalColor, 0.6)
+          horizontalAlignment: Text.AlignRight
+        }
+      }
+
+      ThermalSpec {
+        visible: root.showThermalsCard
+        label: "CPU"
+        idle: root.cpuTempCool
+        load: Math.round((root.cpuTempCool + root.cpuTempHot) / 2)
+        peak: root.cpuTempHot
+        current: stats.cpuTempC
+        color: root.cpuTempColor
+        fontFamily: root.fam
+        normalColor: root.normalColor
+      }
+      ThermalSpec {
+        visible: root.showThermalsCard && root.showGpuCard
+        label: "GPU"
+        idle: root.gpuTempCool
+        load: Math.round((root.gpuTempCool + root.gpuTempHot) / 2)
+        peak: root.gpuTempHot
+        current: stats.gpuTempC
+        color: root.gpuTempColor
+        fontFamily: root.fam
+        normalColor: root.normalColor
+      }
+
+      // ---- Settings panel (toggled by gear icon) ----
+      Column {
+        visible: root.settingsOpen
+        width: parent.width
+        spacing: Style.spacing.xs
+
+        PanelSeparator { foreground: root.normalColor }
+
+        Text {
+          text: "Settings"
+          font.family: root.fam
+          font.pixelSize: Style.font.subtitle
+          font.bold: true
+          color: root.normalColor
+        }
+
+        // Color mode
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text {
+            width: Style.space(84)
+            text: "Colors:"
+            font.family: root.fam
+            font.pixelSize: Style.font.bodySmall
+            color: Util.alpha(root.normalColor, 0.6)
+          }
+          Text {
+            text: root.useThemeColors ? "Theme" : "Custom"
+            font.family: root.fam
+            font.pixelSize: Style.font.bodySmall
+            color: root.normalColor
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.persistSettings({ colorMode: root.useThemeColors ? "custom" : "theme" })
+            }
+          }
+        }
+
+        // Column headers
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: ""; font.family: root.fam; font.pixelSize: Style.font.bodySmall }
+          Text { width: Style.space(52); text: "Bar"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+          Text { width: Style.space(52); text: "Card"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+        }
+
+        // CPU
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "CPU:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showCpu ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showCpu ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showCpu: root.showCpu ? "Hide" : "Show" }) }
+          }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showCpuCard ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showCpuCard ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showCpuCard: root.showCpuCard ? "Hide" : "Show" }) }
+          }
+        }
+
+        // GPU
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "GPU:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showGpu ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showGpu ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showGpu: root.showGpu ? "Hide" : "Show" }) }
+          }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showGpuCard ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showGpuCard ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showGpuCard: root.showGpuCard ? "Hide" : "Show" }) }
+          }
+        }
+
+        // NPU
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "NPU:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showNpu ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showNpu ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showNpu: root.showNpu ? "Hide" : "Show" }) }
+          }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showNpuCard ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showNpuCard ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showNpuCard: root.showNpuCard ? "Hide" : "Show" }) }
+          }
+        }
+
+        // RAM
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "RAM:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showRam ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showRam ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showRam: root.showRam ? "Hide" : "Show" }) }
+          }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showRamCard ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showRamCard ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showRamCard: root.showRamCard ? "Hide" : "Show" }) }
+          }
+        }
+
+        // Swap
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "Swap:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showSwap ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showSwap ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showSwap: root.showSwap ? "Hide" : "Show" }) }
+          }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showSwapCard ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showSwapCard ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showSwapCard: root.showSwapCard ? "Hide" : "Show" }) }
+          }
+        }
+
+        // Disk
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "Disk:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showDisk ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showDisk ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showDisk: root.showDisk ? "Hide" : "Show" }) }
+          }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showDiskCard ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showDiskCard ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showDiskCard: root.showDiskCard ? "Hide" : "Show" }) }
+          }
+        }
+
+        // Fans
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "Fans:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showFans ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showFans ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showFans: root.showFans ? "Hide" : "Show" }) }
+          }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showFansCard ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showFansCard ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showFansCard: root.showFansCard ? "Hide" : "Show" }) }
+          }
+        }
+
+        // Thermals
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "Thermals:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showThermals ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showThermals ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showThermals: root.showThermals ? "Hide" : "Show" }) }
+          }
+          Text {
+            width: Style.space(52); horizontalAlignment: Text.AlignRight
+            text: root.showThermalsCard ? "\u2713" : "\u2717"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.showThermalsCard ? "#4CAF50" : "#F44336"
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showThermalsCard: root.showThermalsCard ? "Hide" : "Show" }) }
+          }
+        }
+      }
+    }
+  }
+}
