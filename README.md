@@ -2,6 +2,10 @@
 
 A consolidated system monitor for [Omarchy](https://omarchy.org/) that merges the best features from multiple community plugins into a single, configurable bar widget.
 
+## Preview
+
+![Vex System Monitor preview](preview.png)
+
 ## Features
 
 - **Hardware autodetection** — CPU/GPU models and thermal limits detected automatically
