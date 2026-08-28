@@ -174,9 +174,17 @@ BarWidget {
     }
   }
 
-  Component.onCompleted: {
-    root.migrateSettings()
+  // Host injection (bar/moduleName/settings) lands asynchronously after the
+  // widget completes (Bar host uses Qt.callLater(injectProps)), so schema
+  // migration runs once the real entry is wired up. Without this the
+  // onCompleted run sees empty settings + a null bar and never persists.
+  function finishHostSetup() {
     root.cardBackgroundPath = String(root.setting("cardBackground", "") || "").trim()
+    root.migrateSettings()
+  }
+
+  Component.onCompleted: {
+    root.finishHostSetup()
   }
 
   // ---- hover card background ----
@@ -252,6 +260,10 @@ BarWidget {
   onSettingsChanged: {
     svc.interval = root.setting("fastPoll", true) ? 3000 : 6000
     root.cardBackgroundPath = String(root.setting("cardBackground", "") || "").trim()
+    // Host injection lands after completion, so the migration that runs in
+    // Component.onCompleted never had real settings/bar and cannot persist.
+    // Now that settings are wired, reconcile the schema (idempotent when clean).
+    Qt.callLater(root.migrateSettings)
   }
 
   property bool settingsOpen: false
