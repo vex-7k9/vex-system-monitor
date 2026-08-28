@@ -11,7 +11,7 @@ BarWidget {
   moduleName: "jd.vex-system-monitor"
 
   // ---- settings (inline shell.json entry; fallback = manifest defaults) ----
-  readonly property int updateIntervalMs: Math.max(500, root.setting("updateInterval", 3000))
+  readonly property int updateIntervalMs: root.setting("fastPoll", true) ? 3000 : 6000
   readonly property int cpuThreshold: root.setting("cpuThreshold", 90)
   readonly property int gpuThreshold: root.setting("gpuThreshold", 95)
   readonly property int npuThreshold: root.setting("npuThreshold", 95)
@@ -115,7 +115,7 @@ BarWidget {
     enabled: root.visible
   }
 
-  onSettingsChanged: svc.interval = Math.max(500, root.setting("updateInterval", 3000))
+  onSettingsChanged: svc.interval = root.setting("fastPoll", true) ? 3000 : 6000
 
   property bool settingsOpen: false
 
@@ -513,6 +513,30 @@ BarWidget {
               anchors.fill: parent
               cursorShape: Qt.PointingHandCursor
               onClicked: root.persistSettings({ colorMode: root.useThemeColors ? "custom" : "theme" })
+            }
+          }
+        }
+
+        // Poll speed
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text {
+            width: Style.space(84)
+            text: "Poll:"
+            font.family: root.fam
+            font.pixelSize: Style.font.bodySmall
+            color: Util.alpha(root.normalColor, 0.6)
+          }
+          Text {
+            text: root.setting("fastPoll", true) ? "3s (fast)" : "6s (slow)"
+            font.family: root.fam
+            font.pixelSize: Style.font.bodySmall
+            color: root.normalColor
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.persistSettings({ fastPoll: !root.setting("fastPoll", true) })
             }
           }
         }

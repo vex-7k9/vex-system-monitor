@@ -21,13 +21,11 @@
       "default": "theme"
     },
     {
-      "key": "updateInterval",
-      "type": "number",
-      "label": "Update Interval (ms)",
-      "description": "Polling frequency in milliseconds (500-60000)",
-      "min": 500,
-      "max": 60000,
-      "default": 3000
+      "key": "fastPoll",
+      "type": "boolean",
+      "label": "Fast Polling",
+      "description": "3 seconds (fast) or 6 seconds (slow) update interval",
+      "default": true
     },
     {
       "key": "showCpu",
