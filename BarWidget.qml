@@ -94,6 +94,86 @@ BarWidget {
       root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
+  // Preserve-then-set (or delete when value is empty) a single setting. Avoids
+  // assigning undefined into an object literal, which is not representable in
+  // the persisted JSON entry.
+  function setSetting(key, value) {
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    if (value === undefined || value === null || value === "") {
+      if (entry[key] !== undefined) delete entry[key]
+    } else entry[key] = value
+    root.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  // Thermal override helpers. Overrides are optional; when unset the color
+  // scale follows the detected hardware spec (auto). Clicking a value clears
+  // the override back to auto.
+  function tempAuto(key) {
+    if (key === "cpuTempCool") return Math.max(30, svc.cpuIdleTemp - 5)
+    if (key === "cpuTempHot") return svc.cpuPeakTemp
+    if (key === "gpuTempCool") return Math.max(30, svc.gpuIdleTemp - 5)
+    if (key === "gpuTempHot") return svc.gpuPeakTemp
+    return 50
+  }
+
+  function hasTempOverride(key) {
+    var v = root.settings[key]
+    return v !== undefined && v !== null && String(v) !== ""
+  }
+
+  function tempSettingText(key) {
+    var n = parseInt(root.setting(key, root.tempAuto(key)))
+    if (isNaN(n)) return "auto \u00B0C"
+    return (root.hasTempOverride(key) ? "" : "auto ") + n + "\u00B0C"
+  }
+
+  function bumpTemp(key, delta, min, max) {
+    var cur = parseInt(root.setting(key, root.tempAuto(key)))
+    if (isNaN(cur)) cur = root.tempAuto(key)
+    root.setSetting(key, Math.max(min, Math.min(max, cur + delta)))
+  }
+
+  // ---- settings schema + migration ----
+  // The plugin has shipped toggle keys for years; old shell.json entries may
+  // carry stale/renamed keys (e.g. legacy "displayMode"). Every known key is
+  // preserved, everything else is dropped on load, and the schema version is
+  // stamped so future migrations can key off it.
+  readonly property var _settingKeys: [
+    "colorMode", "fastPoll", "settingsVersion",
+    "showCpu", "showGpu", "showNpu", "showRam", "showSwap", "showDisk", "showFans", "showThermals",
+    "showCpuCard", "showGpuCard", "showNpuCard", "showRamCard", "showSwapCard", "showDiskCard", "showFansCard", "showThermalsCard",
+    "cpuThreshold", "gpuThreshold", "npuThreshold", "memoryThreshold", "swapThreshold", "diskThreshold",
+    "cpuTempCool", "cpuTempHot", "gpuTempCool", "gpuTempHot"
+  ]
+
+  function knownSettingKey(k) {
+    return root._settingKeys.indexOf(k) >= 0
+  }
+
+  function migrateSettings() {
+    var dirty = false
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) {
+      if (existing === "id") continue
+      if (root.knownSettingKey(existing)) entry[existing] = root.settings[existing]
+      else dirty = true
+    }
+    if (root.setting("settingsVersion", 1) !== 2) {
+      entry.settingsVersion = 2
+      dirty = true
+    }
+    if (dirty) {
+      root.settings = entry
+      if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+        root.bar.shell.updateEntryInline(root.moduleName, entry)
+    }
+  }
+
+  Component.onCompleted: root.migrateSettings()
+
   readonly property real memRatio: stats.memTotalKb > 0 ? stats.memUsedKb / stats.memTotalKb : 0
   readonly property real swapRatio: stats.swapTotalKb > 0 ? stats.swapUsedKb / stats.swapTotalKb : 0
 
@@ -733,6 +813,80 @@ BarWidget {
             font.family: root.fam; font.pixelSize: Style.font.bodySmall
             color: root.showThermalsCard ? "#4CAF50" : "#F44336"
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.persistSettings({ showThermalsCard: root.showThermalsCard ? "Hide" : "Show" }) }
+          }
+        }
+
+        // ---- thermal color-scale overrides (auto = detected spec) ----
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "CPU cool:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text { width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempCool", -5, 30, 60) } }
+          Text {
+            width: Style.space(66); horizontalAlignment: Text.AlignHCenter
+            text: root.tempSettingText("cpuTempCool")
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.normalColor
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.setSetting("cpuTempCool", undefined) }
+          }
+          Text { width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempCool", 5, 30, 60) } }
+        }
+
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "CPU hot:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text { width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempHot", -5, 70, 110) } }
+          Text {
+            width: Style.space(66); horizontalAlignment: Text.AlignHCenter
+            text: root.tempSettingText("cpuTempHot")
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.normalColor
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.setSetting("cpuTempHot", undefined) }
+          }
+          Text { width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempHot", 5, 70, 110) } }
+        }
+
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "GPU cool:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text { width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempCool", -5, 30, 60) } }
+          Text {
+            width: Style.space(66); horizontalAlignment: Text.AlignHCenter
+            text: root.tempSettingText("gpuTempCool")
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.normalColor
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.setSetting("gpuTempCool", undefined) }
+          }
+          Text { width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempCool", 5, 30, 60) } }
+        }
+
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "GPU hot:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text { width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempHot", -5, 70, 110) } }
+          Text {
+            width: Style.space(66); horizontalAlignment: Text.AlignHCenter
+            text: root.tempSettingText("gpuTempHot")
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.normalColor
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.setSetting("gpuTempHot", undefined) }
+          }
+          Text { width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempHot", 5, 70, 110) } }
+        }
+
+        // Session-high temps reset
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "Highs:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            text: "reset"
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.normalColor
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: svc.resetSessionHigh() }
           }
         }
       }

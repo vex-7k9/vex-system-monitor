@@ -81,6 +81,19 @@ QtObject {
   property int gpuLoadTemp: Thermal.getDefaultGpu().load
   property int gpuPeakTemp: Thermal.getDefaultGpu().peak
 
+  // ---- resolved at startup by hwDetect ----
+  property bool hwDetected: false            // true once parseHwDetect ran
+  property bool hasNvidia: false             // GPU model matched NVIDIA
+  readonly property int nvsmiEveryTicks: 3   // poll nvidia-smi every N ticks
+  property int tickCount: 0
+  property string cpuTempPath: "/sys/class/hwmon/hwmon1/temp1_input"  // resolved to k10temp/coretemp
+
+  // Reset session-high temps (max seen since load) to 0.
+  function resetSessionHigh() {
+    root.cpuTempHigh = 0
+    root.gpuTempHigh = 0
+  }
+
   function refresh() {
     if (!pollProc.running) {
       pollProc.running = true
@@ -103,34 +116,48 @@ QtObject {
   }
 
   // ---- Intel Lunar Lake sysfs layout (Arc iGPU tile0/gt0 + accel0 NPU). ----
-  // QML has no triple-quoted strings, so the script is a list of lines joined
-  // with \n. The inner double quotes are omitted — every value is a space-
-  // separated run of tokens (no glob chars, no embedded spaces), so unquoted
-  // `echo $(...)` is word-splitting-safe and prints single-spaced. The single
-  // quotes inside the awk/grep programs are literal inside these QML strings.
+  // QML has no triple-quoted strings, so the script is built from a list of
+  // lines joined with \n. Every value is a space-separated run of tokens (no
+  // glob chars, no embedded spaces), so unquoted `echo` is word-splitting-safe
+  // and prints single-spaced. The single quotes inside the awk programs are
+  // literal inside these QML strings.
   //
-  // Fixed absolute paths for nvidia-smi so $PATH manipulation cannot redirect
-  // the helper.
-  readonly property string snapshotScript: [
-    "LANG=C",
-    "{",
-    "  echo cpu=$(/usr/bin/head -1 /proc/stat)",
-    "  echo cur=$(/usr/bin/cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null || echo NA)",
-    "  echo cmax=$(/usr/bin/cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null || echo NA)",
-    "  echo ctemp=$(/usr/bin/cat /sys/class/hwmon/hwmon1/temp1_input 2>/dev/null || echo NA)",
-    "  echo mem=$(/usr/bin/grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree):' /proc/meminfo | /usr/bin/xargs)",
-    "  echo gact=$(/usr/bin/cat /sys/class/drm/card0/device/tile0/gt0/freq0/act_freq 2>/dev/null || echo NA)",
-    "  echo gmax=$(/usr/bin/cat /sys/class/drm/card0/device/tile0/gt0/freq0/max_freq 2>/dev/null || echo NA)",
-    "  echo gidle=$(/usr/bin/cat /sys/class/drm/card0/device/tile0/gt0/gtidle/idle_residency_ms 2>/dev/null || echo NA)",
-    "  echo nvsmi=$(/usr/bin/nvidia-smi --query-gpu=utilization.gpu,clocks.current.graphics,clocks.max.graphics,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits 2>/dev/null || echo NA)",
-    "  echo nbusy=$(/usr/bin/cat /sys/class/accel/accel0/device/npu_busy_time_us 2>/dev/null || echo NA)",
-    "  echo nstat=$(/usr/bin/cat /sys/class/accel/accel0/device/power/runtime_status 2>/dev/null || echo NA)",
-    "  echo ncur=$(/usr/bin/cat /sys/class/accel/accel0/device/npu_current_frequency_mhz 2>/dev/null || echo NA)",
-    "  echo nmax=$(/usr/bin/cat /sys/class/accel/accel0/device/npu_max_frequency_mhz 2>/dev/null || echo NA)",
-    "  echo nmem=$(/usr/bin/cat /sys/class/accel/accel0/device/npu_memory_utilization 2>/dev/null || echo NA)",
-    "  echo disk=$(/usr/bin/df -P / | /usr/bin/awk 'NR==2 {print $2, $3, $4, $5}')",
-    "}"
-  ].join("\n")
+  // The script is regenerated whenever hardware detection resolves (hwmon
+  // path, NVIDIA presence), and nvidia-smi is only queried every N ticks on
+  // NVIDIA machines — never on AMD/Intel-only systems. sysfs reads use the
+  // shell `read` builtin instead of forking cat/head per file, and meminfo is
+  // folded into one awk pass, to keep each tick to ~3 forks total.
+  //
+  // Fixed absolute paths so a hijacked $PATH cannot redirect helpers.
+  function _snapshotLines() {
+    var lines = [
+      "LANG=C",
+      "{",
+      "  read -r _ u n s i io irq so < /proc/stat; echo cpu $u $n $s $i $io $irq $so",
+      "  read -r cur < /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null || cur=NA",
+      "  read -r cmax < /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null || cmax=NA",
+      "  read -r ctemp < " + root.cpuTempPath + " 2>/dev/null || ctemp=NA",
+      "  echo mem=$(/usr/bin/awk '/^(MemTotal|MemAvailable|SwapTotal|SwapFree):/ {print $1, $2}' /proc/meminfo)",
+      "  read -r gact < /sys/class/drm/card0/device/tile0/gt0/freq0/act_freq 2>/dev/null || gact=NA",
+      "  read -r gmax < /sys/class/drm/card0/device/tile0/gt0/freq0/max_freq 2>/dev/null || gmax=NA",
+      "  read -r gidle < /sys/class/drm/card0/device/tile0/gt0/gtidle/idle_residency_ms 2>/dev/null || gidle=NA"
+    ]
+    if (!root.hwDetected || (root.hasNvidia && root.tickCount % root.nvsmiEveryTicks === 0)) {
+      lines.push("  echo nvsmi=$(/usr/bin/nvidia-smi --query-gpu=utilization.gpu,clocks.current.graphics,clocks.max.graphics,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits 2>/dev/null || echo NA)")
+    }
+    lines = lines.concat([
+      "  read -r nbusy < /sys/class/accel/accel0/device/npu_busy_time_us 2>/dev/null || nbusy=NA",
+      "  read -r nstat < /sys/class/accel/accel0/device/power/runtime_status 2>/dev/null || nstat=NA",
+      "  read -r ncur < /sys/class/accel/accel0/device/npu_current_frequency_mhz 2>/dev/null || ncur=NA",
+      "  read -r nmax < /sys/class/accel/accel0/device/npu_max_frequency_mhz 2>/dev/null || nmax=NA",
+      "  read -r nmem < /sys/class/accel/accel0/device/npu_memory_utilization 2>/dev/null || nmem=NA",
+      "  echo disk=$(/usr/bin/df -P / | /usr/bin/awk 'NR==2 {print $2, $3, $4, $5}')",
+      "} 2>/dev/null"
+    ])
+    return lines
+  }
+
+  property string snapshotScript: root._snapshotLines().join("\n")
 
   property Process pollProc: Process {
     command: ["sh", "-c", root.snapshotScript]
@@ -205,14 +232,21 @@ QtObject {
   // ---- hardware detection script ----
   // Fixed absolute paths. nvidia-smi is primary; falls back to lspci so AMD /
   // Intel / unknown GPUs still get a model string for the thermal lookup table.
-  // Output is capped (head -1) so the collector stays bounded.
+  // Output is capped (head -1) so the collector stays bounded. Also resolves
+  // the CPU temp hwmon (k10temp/coretemp) so the snapshot reads the right
+  // sensor regardless of sysfs numbering.
   readonly property string hwDetectScript: [
     "LANG=C",
     "{",
     "  echo cpumodel=$(/usr/bin/grep -m1 'model name' /proc/cpuinfo | /usr/bin/cut -d: -f2 | /usr/bin/xargs)",
-"  echo gpumodel=$(/usr/bin/nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null ||",
+    "  echo gpumodel=$(/usr/bin/nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null ||",
     "    /usr/bin/lspci 2>/dev/null | /usr/bin/grep -E 'VGA|3D' | /usr/bin/head -1 | /usr/bin/awk -F': ' '{print $2}' ||",
     "    echo NA)",
+    "  hwmonp=$(for d in /sys/class/hwmon/hwmon*; do",
+    "      n=$(/usr/bin/cat \"$d/name\" 2>/dev/null)",
+    "      case \"$n\" in k10temp|coretemp) echo \"$d/temp1_input\"; break;; esac",
+    "    done)",
+    "  echo hwmonp=${hwmonp:-NA}",
     "}"
   ].join("\n")
 
@@ -248,6 +282,14 @@ QtObject {
     root.cpuModel = String(raw.cpumodel || "").trim()
     root.gpuModel = String(raw.gpumodel || "").trim()
 
+    // Resolve the CPU temp sensor path (k10temp/coretemp) and whether an
+    // NVIDIA GPU is present — gates nvidia-smi polling in the snapshot.
+    root.cpuTempPath = (raw.hwmonp && raw.hwmonp !== "NA")
+      ? raw.hwmonp
+      : "/sys/class/hwmon/hwmon1/temp1_input"
+    root.hasNvidia = root.gpuModel.toLowerCase().indexOf("nvidia") >= 0 || root.gpuModel.toLowerCase().indexOf("geforce") >= 0
+    root.hwDetected = true
+
     // Real-world thermal spec for the detected hardware (idle/load/peak/
     // tjMax). Falls back to generic envelopes when the model is unknown.
     const cth = Thermal.detectCpu(root.cpuModel)
@@ -271,6 +313,7 @@ QtObject {
       raw[line.slice(0, i)] = line.slice(i + 1)
     }
     const now = Date.now()
+    root.tickCount = (root.tickCount + 1) % root.nvsmiEveryTicks
 
     // CPU: aggregate /proc/stat delta. Fields after the "cpu" token are
     // user nice system idle iowait irq softirq — idle is index 4.
@@ -308,9 +351,12 @@ QtObject {
     root.swapTotalKb = st
     root.swapUsedKb = Math.max(0, st - sf)
 
-    // GPU: try Intel sysfs first, fall back to nvidia-smi
+    // GPU: try Intel sysfs first, fall back to nvidia-smi. On NVIDIA systems the
+    // snapshot only includes an nvsmi line every nvsmiEveryTicks ticks, so
+    // between polls we keep the last good readings instead of zeroing them.
     const gidle = parseFloat(raw.gidle)
-    const nvRaw = (raw.nvsmi || "").trim()
+    const nvLine = raw.hasOwnProperty("nvsmi")
+    const nvRaw = (nvLine ? raw.nvsmi : "").trim()
     root.gpuMaxMhz = parseInt(raw.gmax) || 0
     root.gpuFreqMhz = parseInt(raw.gact) || 0
     root.gpuMemUsedMb = 0
@@ -327,7 +373,7 @@ QtObject {
       }
       root.prevGpuIdle = gidle
       root.prevGpuWall = now
-    } else if (nvRaw !== "NA" && nvRaw !== "") {
+    } else if (nvLine && nvRaw !== "NA" && nvRaw !== "") {
       // NVIDIA GPU via nvidia-smi:
       // "util%, clk_mhz, max_mhz, mem_used_MiB, mem_total_MiB, temp_C"
       const parts = nvRaw.split(",").map(function(s) { return s.trim() })
@@ -343,6 +389,9 @@ QtObject {
         if (root.gpuTempC > root.gpuTempHigh) root.gpuTempHigh = root.gpuTempC
       }
       root.prevGpuIdle = -1
+      root.prevGpuWall = now
+    } else if (root.hasNvidia) {
+      // NVIDIA GPU but nvsmi not polled this tick — keep last readings.
       root.prevGpuWall = now
     } else {
       root.gpuType = ""
