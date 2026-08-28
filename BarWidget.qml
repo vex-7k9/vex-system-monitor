@@ -504,7 +504,7 @@ BarWidget {
         fontFamily: root.fam
         normalColor: root.normalColor
         load: Fmt.pct01(root.memRatio)
-        freq: stats.memSpeed || "—"
+        freq: "—"
         used: Fmt.gb(stats.memUsedKb)
         free: Fmt.gb(stats.memTotalKb - stats.memUsedKb)
         total: Fmt.gb(stats.memTotalKb)

@@ -49,7 +49,6 @@ QtObject {
   property real diskAvailKb: 0
   property real diskTotalKb: 0
   property int diskPct: 0
-  property string memSpeed: ""        // DRAM configured speed ("8533 MT/s"); via dmidecode, "" if unavailable
   property string diskSpeed: ""       // first NVMe link speed ("8.0 GT/s"); "" on non-NVMe
 
   property int interval: 3000
@@ -180,15 +179,13 @@ QtObject {
     }
   }
 
-  // Static clock reads (DRAM speed, NVMe link speed) — one-shot at startup,
-  // not per poll. RAM speed needs dmidecode + passwordless sudo (`sudo -n`
-  // never prompts); both fall back to "" so the freq column shows "—".
-  //
-  // Fixed absolute paths for sudo and dmidecode.
+  // Static clock read (NVMe link speed) — one-shot at startup, not per poll.
+  // The NVMe link speed comes from sysfs and needs no privileges. DIMM
+  // configured speed has no sudo-free source (SMBIOS needs dmidecode/root),
+  // so the RAM freq column always shows "—".
   readonly property string clockScript: [
     "LANG=C",
     "{",
-    "  echo memspeed=$(/usr/bin/sudo -n /usr/bin/dmidecode -t memory 2>/dev/null | /usr/bin/awk -F: '/Configured Memory Speed/ {print $2; exit}')",
     "  echo ssd=$(/usr/bin/cat /sys/class/nvme/nvme*/device/current_link_speed 2>/dev/null | /usr/bin/head -1)",
     "}"
   ].join("\n")
@@ -222,7 +219,6 @@ QtObject {
       if (i < 0) continue
       raw[line.slice(0, i)] = line.slice(i + 1)
     }
-    root.memSpeed = String(raw.memspeed || "").trim()
     // Trim the trailing " PCIe" so "8.0 GT/s PCIe" fits the freq column.
     root.diskSpeed = String(raw.ssd || "").replace(/\s*PCIe$/, "").trim()
   }
