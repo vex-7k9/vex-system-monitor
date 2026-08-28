@@ -410,10 +410,12 @@ BarWidget {
     MouseArea {
       id: cardBgHit
       anchors.fill: parent
-      // Only double-click goes to the picker; single clicks on rows above
-      // still reach the gear and settings toggles because they sit on top.
-      acceptedButtons: Qt.LeftButton
-      onDoubleClicked: root.pickCardBackground()
+      // Double-click opens the picker; right-click clears back to the default
+      // card. Single clicks on rows above still reach the gear and settings
+      // toggles because they sit on top of this layer.
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
+      onDoubleClicked: if (mouse.button === Qt.LeftButton) root.pickCardBackground()
+      onClicked: if (mouse.button === Qt.RightButton) root.clearCardBackground()
     }
 
     Column {

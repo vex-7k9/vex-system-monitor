@@ -12,7 +12,7 @@ A consolidated system monitor for [Omarchy](https://omarchy.org/) that merges th
 - **Modular settings** — toggle each meter on/off for bar and hover card separately
 - **Theme integration** — uses Omarchy's accent/urgent colors or custom green/red gradient
 - **Settings GUI** — gear icon in hover card for quick configuration
-- **Card background** — double-click the hover card for the desktop background carousel (arrow keys + Enter), stored per-card
+- **Card background** — double-click the hover card for the desktop background carousel (arrow keys + Enter), stored per-card; right-click the card (or its settings value) to clear back to the default
 
 ## Installation
 
