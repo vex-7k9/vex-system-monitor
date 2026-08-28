@@ -4,6 +4,10 @@ import Quickshell.Io
 // Fan-speed and temperature monitor via lm_sensors. Polls `sensors -j` every
 // 30 seconds for low overhead. Parses per-fan RPM and per-chip temperatures
 // (CPU package, board sensors, NVMe).
+//
+// Security: the collector has a 10 s wall-clock timeout enforced by a Timer
+// that calls kill(), and a 512 KiB byte ceiling checked on streamFinished.
+// The `sensors` helper uses a fixed absolute path so $PATH cannot redirect it.
 QtObject {
   id: root
 
@@ -12,6 +16,10 @@ QtObject {
   property bool loaded: false
   property int interval: 30000
   property bool enabled: true
+
+  // ---- security limits ----
+  readonly property int _maxBytes: 524288   // 512 KiB — reject collector overflow
+  readonly property int _timeoutMs: 10000  // 10 s wall-clock deadline
 
   readonly property bool hasDeadFan: {
     var f = fans
@@ -29,7 +37,10 @@ QtObject {
   }
 
   function refresh() {
-    if (!sensorsProc.running) sensorsProc.running = true
+    if (!sensorsProc.running) {
+      sensorsProc.running = true
+      sensorsWatchdog.restart()
+    }
   }
 
   function parseSensors(raw) {
@@ -104,10 +115,23 @@ QtObject {
   }
 
   property Process sensorsProc: Process {
-    command: ["sensors", "-j"]
+    command: ["/usr/bin/sensors", "-j"]
     stdout: StdioCollector {
+      id: sensorsOutput
       waitForEnd: true
-      onStreamFinished: root.parseSensors(text)
+      onStreamFinished: {
+        sensorsWatchdog.stop()
+        if (sensorsOutput.data.length > root._maxBytes) return
+        root.parseSensors(text)
+      }
+    }
+  }
+
+  property Timer sensorsWatchdog: Timer {
+    interval: root._timeoutMs
+    repeat: false
+    onTriggered: {
+      if (sensorsProc.running) sensorsProc.kill()
     }
   }
 

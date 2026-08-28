@@ -11,6 +11,11 @@ import Quickshell.Io
 // A missing sysfs path prints the `NA` sentinel (never a bare 0) so a missing
 // GPU/NPU device sets available=false and the meter hides, distinct from a real
 // idle reading.
+//
+// Security: every collector has a wall-clock timeout (10 s) enforced by a Timer
+// that calls kill(), and a byte ceiling (512 KiB) checked on streamFinished.
+// External helpers use fixed absolute paths so a hijacked $PATH cannot redirect
+// them.
 QtObject {
   id: root
 
@@ -47,6 +52,10 @@ QtObject {
   property int interval: 3000
   property bool enabled: true
 
+  // ---- security limits ----
+  readonly property int _maxBytes: 524288   // 512 KiB — reject collector overflow
+  readonly property int _timeoutMs: 10000  // 10 s wall-clock deadline per collector
+
   // ---- diff state (first sample records, second computes) ----
   property var prevCpu: null
   property real prevGpuIdle: -1
@@ -61,8 +70,14 @@ QtObject {
   property int gpuTjMax: 93   // default NVIDIA TjMax
 
   function refresh() {
-    if (!pollProc.running) pollProc.running = true
-    if (!hwDetectProc.running) hwDetectProc.running = true
+    if (!pollProc.running) {
+      pollProc.running = true
+      pollWatchdog.restart()
+    }
+    if (!hwDetectProc.running) {
+      hwDetectProc.running = true
+      hwDetectWatchdog.restart()
+    }
   }
 
   // QtObject has no default property in this Qt, so the Timer and Process are
@@ -75,30 +90,33 @@ QtObject {
     onTriggered: root.refresh()
   }
 
-  // Intel Lunar Lake sysfs layout (Arc iGPU tile0/gt0 + accel0 NPU).
+  // ---- Intel Lunar Lake sysfs layout (Arc iGPU tile0/gt0 + accel0 NPU). ----
   // QML has no triple-quoted strings, so the script is a list of lines joined
   // with \n. The inner double quotes are omitted — every value is a space-
   // separated run of tokens (no glob chars, no embedded spaces), so unquoted
   // `echo $(...)` is word-splitting-safe and prints single-spaced. The single
   // quotes inside the awk/grep programs are literal inside these QML strings.
+  //
+  // Fixed absolute paths for nvidia-smi so $PATH manipulation cannot redirect
+  // the helper.
   readonly property string snapshotScript: [
     "LANG=C",
     "{",
-    "  echo cpu=$(head -1 /proc/stat)",
-    "  echo cur=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null || echo NA)",
-    "  echo cmax=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null || echo NA)",
-    "  echo ctemp=$(cat /sys/class/hwmon/hwmon1/temp1_input 2>/dev/null || echo NA)",
-    "  echo mem=$(grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree):' /proc/meminfo | xargs)",
-    "  echo gact=$(cat /sys/class/drm/card0/device/tile0/gt0/freq0/act_freq 2>/dev/null || echo NA)",
-    "  echo gmax=$(cat /sys/class/drm/card0/device/tile0/gt0/freq0/max_freq 2>/dev/null || echo NA)",
-    "  echo gidle=$(cat /sys/class/drm/card0/device/tile0/gt0/gtidle/idle_residency_ms 2>/dev/null || echo NA)",
-    "  echo nvsmi=$(nvidia-smi --query-gpu=utilization.gpu,clocks.current.graphics,clocks.max.graphics,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits 2>/dev/null || echo NA)",
-    "  echo nbusy=$(cat /sys/class/accel/accel0/device/npu_busy_time_us 2>/dev/null || echo NA)",
-    "  echo nstat=$(cat /sys/class/accel/accel0/device/power/runtime_status 2>/dev/null || echo NA)",
-    "  echo ncur=$(cat /sys/class/accel/accel0/device/npu_current_frequency_mhz 2>/dev/null || echo NA)",
-    "  echo nmax=$(cat /sys/class/accel/accel0/device/npu_max_frequency_mhz 2>/dev/null || echo NA)",
-    "  echo nmem=$(cat /sys/class/accel/accel0/device/npu_memory_utilization 2>/dev/null || echo NA)",
-    "  echo disk=$(df -P / | awk 'NR==2 {print $2, $3, $4, $5}')",
+    "  echo cpu=$(/usr/bin/head -1 /proc/stat)",
+    "  echo cur=$(/usr/bin/cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null || echo NA)",
+    "  echo cmax=$(/usr/bin/cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null || echo NA)",
+    "  echo ctemp=$(/usr/bin/cat /sys/class/hwmon/hwmon1/temp1_input 2>/dev/null || echo NA)",
+    "  echo mem=$(/usr/bin/grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree):' /proc/meminfo | /usr/bin/xargs)",
+    "  echo gact=$(/usr/bin/cat /sys/class/drm/card0/device/tile0/gt0/freq0/act_freq 2>/dev/null || echo NA)",
+    "  echo gmax=$(/usr/bin/cat /sys/class/drm/card0/device/tile0/gt0/freq0/max_freq 2>/dev/null || echo NA)",
+    "  echo gidle=$(/usr/bin/cat /sys/class/drm/card0/device/tile0/gt0/gtidle/idle_residency_ms 2>/dev/null || echo NA)",
+    "  echo nvsmi=$(/usr/bin/nvidia-smi --query-gpu=utilization.gpu,clocks.current.graphics,clocks.max.graphics,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits 2>/dev/null || echo NA)",
+    "  echo nbusy=$(/usr/bin/cat /sys/class/accel/accel0/device/npu_busy_time_us 2>/dev/null || echo NA)",
+    "  echo nstat=$(/usr/bin/cat /sys/class/accel/accel0/device/power/runtime_status 2>/dev/null || echo NA)",
+    "  echo ncur=$(/usr/bin/cat /sys/class/accel/accel0/device/npu_current_frequency_mhz 2>/dev/null || echo NA)",
+    "  echo nmax=$(/usr/bin/cat /sys/class/accel/accel0/device/npu_max_frequency_mhz 2>/dev/null || echo NA)",
+    "  echo nmem=$(/usr/bin/cat /sys/class/accel/accel0/device/npu_memory_utilization 2>/dev/null || echo NA)",
+    "  echo disk=$(/usr/bin/df -P / | /usr/bin/awk 'NR==2 {print $2, $3, $4, $5}')",
     "}"
   ].join("\n")
 
@@ -107,18 +125,32 @@ QtObject {
     stdout: StdioCollector {
       id: pollOutput
       waitForEnd: true
-      onStreamFinished: root.parse(pollOutput.text)
+      onStreamFinished: {
+        pollWatchdog.stop()
+        if (pollOutput.data.length > root._maxBytes) return
+        root.parse(pollOutput.text)
+      }
+    }
+  }
+
+  property Timer pollWatchdog: Timer {
+    interval: root._timeoutMs
+    repeat: false
+    onTriggered: {
+      if (pollProc.running) pollProc.kill()
     }
   }
 
   // Static clock reads (DRAM speed, NVMe link speed) — one-shot at startup,
   // not per poll. RAM speed needs dmidecode + passwordless sudo (`sudo -n`
   // never prompts); both fall back to "" so the freq column shows "—".
+  //
+  // Fixed absolute paths for sudo and dmidecode.
   readonly property string clockScript: [
     "LANG=C",
     "{",
-    "  echo memspeed=$(sudo -n dmidecode -t memory 2>/dev/null | awk -F: '/Configured Memory Speed/ {print $2; exit}')",
-    "  echo ssd=$(cat /sys/class/nvme/nvme*/device/current_link_speed 2>/dev/null | head -1)",
+    "  echo memspeed=$(/usr/bin/sudo -n /usr/bin/dmidecode -t memory 2>/dev/null | /usr/bin/awk -F: '/Configured Memory Speed/ {print $2; exit}')",
+    "  echo ssd=$(/usr/bin/cat /sys/class/nvme/nvme*/device/current_link_speed 2>/dev/null | /usr/bin/head -1)",
     "}"
   ].join("\n")
 
@@ -127,7 +159,19 @@ QtObject {
     stdout: StdioCollector {
       id: clockOutput
       waitForEnd: true
-      onStreamFinished: root.parseClocks(clockOutput.text)
+      onStreamFinished: {
+        clockWatchdog.stop()
+        if (clockOutput.data.length > root._maxBytes) return
+        root.parseClocks(clockOutput.text)
+      }
+    }
+  }
+
+  property Timer clockWatchdog: Timer {
+    interval: root._timeoutMs
+    repeat: false
+    onTriggered: {
+      if (clockProc.running) clockProc.kill()
     }
   }
 
@@ -147,11 +191,12 @@ QtObject {
   Component.onCompleted: clockProc.running = true
 
   // ---- hardware detection script ----
+  // Fixed absolute path for nvidia-smi.
   readonly property string hwDetectScript: [
     "LANG=C",
     "{",
-    "  echo cpumodel=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs)",
-    "  echo gpumodel=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo NA)",
+    "  echo cpumodel=$(/usr/bin/grep -m1 'model name' /proc/cpuinfo | /usr/bin/cut -d: -f2 | /usr/bin/xargs)",
+    "  echo gpumodel=$(/usr/bin/nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo NA)",
     "}"
   ].join("\n")
 
@@ -160,7 +205,19 @@ QtObject {
     stdout: StdioCollector {
       id: hwDetectOutput
       waitForEnd: true
-      onStreamFinished: root.parseHwDetect(hwDetectOutput.text)
+      onStreamFinished: {
+        hwDetectWatchdog.stop()
+        if (hwDetectOutput.data.length > root._maxBytes) return
+        root.parseHwDetect(hwDetectOutput.text)
+      }
+    }
+  }
+
+  property Timer hwDetectWatchdog: Timer {
+    interval: root._timeoutMs
+    repeat: false
+    onTriggered: {
+      if (hwDetectProc.running) hwDetectProc.kill()
     }
   }
 
