@@ -115,7 +115,7 @@
       "key": "showThermals",
       "type": "enum",
       "label": "Thermal Envelope",
-      "description": "Show/hide thermal envelope reference (Idle/Load/Peak/Now)",
+      "description": "Show/hide thermal envelope reference (Idle/Load/Throttle/High/Now)",
       "options": [
         { "value": "Auto", "label": "Auto (show if available)" },
         { "value": "Show", "label": "Show" },

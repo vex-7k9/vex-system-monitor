@@ -446,7 +446,15 @@ BarWidget {
         }
         Text {
           width: Style.space(52)
-          text: "Peak"
+          text: "Throttle"
+          font.family: root.fam
+          font.pixelSize: Style.font.caption
+          color: Util.alpha(root.normalColor, 0.6)
+          horizontalAlignment: Text.AlignRight
+        }
+        Text {
+          width: Style.space(52)
+          text: "High"
           font.family: root.fam
           font.pixelSize: Style.font.caption
           color: Util.alpha(root.normalColor, 0.6)
@@ -468,6 +476,7 @@ BarWidget {
         idle: stats.cpuIdleTemp
         load: stats.cpuLoadTemp
         peak: stats.cpuPeakTemp
+        high: stats.cpuTempHigh
         current: stats.cpuTempC
         color: root.cpuTempColor
         fontFamily: root.fam
@@ -479,6 +488,7 @@ BarWidget {
         idle: stats.gpuIdleTemp
         load: stats.gpuLoadTemp
         peak: stats.gpuPeakTemp
+        high: stats.gpuTempHigh
         current: stats.gpuTempC
         color: root.gpuTempColor
         fontFamily: root.fam

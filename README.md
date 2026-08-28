@@ -28,7 +28,7 @@ Click the gear icon (⚙) in the hover card to access settings:
 - **Thresholds**: CPU/GPU/RAM/Swap/Disk warning levels
 - **Temperature gradient**: Auto-detected from hardware, or manually override
 
-**Hardware Detection**: On load the plugin detects your CPU and GPU models and looks up real-world thermal envelopes (idle/load/peak/TjMax) from a built-in reference table covering most common CPU/GPU combos. Hover over the widget to see the detected hardware, its thermal limits, and the Idle/Load/Peak/Now reference. If your hardware isn't in the table, sensible averaged defaults are used so the color gradient still works.
+**Hardware Detection**: On load the plugin detects your CPU and GPU models and looks up real-world thermal envelopes (idle/load/throttle/TjMax) from a built-in reference table covering most common CPU/GPU combos. Hover over the widget to see the detected hardware, its thermal limits, and the Idle/Load/Throttle/High/Now reference — High tracks the session max temp. If your hardware isn't in the table, sensible averaged defaults are used so the color gradient still works.
 
 ## Hardware Temperature Reference
 

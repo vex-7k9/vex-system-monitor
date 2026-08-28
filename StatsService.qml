@@ -26,6 +26,8 @@ QtObject {
   property int cpuMaxMhz: 0
   property int cpuTempC: 0           // CPU temp, °C (k10temp Tctl); 0 if unavailable
   property int gpuTempC: 0           // GPU temp, °C (nvidia-smi); 0 if unavailable
+  property int cpuTempHigh: 0        // session-high CPU temp, °C (max seen since load)
+  property int gpuTempHigh: 0        // session-high GPU temp, °C (max seen since load)
   property real memUsedKb: 0
   property real memTotalKb: 0
   property real swapUsedKb: 0
@@ -288,6 +290,7 @@ QtObject {
     root.cpuMaxMhz = Math.round((parseInt(raw.cmax) || 0) / 1000)
     // k10temp reports millidegrees C (e.g. 55625 -> 55°C). Round to integer °C.
     root.cpuTempC = Math.round((parseFloat(raw.ctemp) || 0) / 1000)
+    if (root.cpuTempC > root.cpuTempHigh) root.cpuTempHigh = root.cpuTempC
 
     // Memory / swap (KB)
     let mt = 0, ma = 0, st = 0, sf = 0
@@ -337,6 +340,7 @@ QtObject {
         root.gpuMemUsedMb = parseFloat(parts[3]) || 0
         root.gpuMemTotalMb = parseFloat(parts[4]) || 0
         root.gpuTempC = parseInt(parts[5]) || 0
+        if (root.gpuTempC > root.gpuTempHigh) root.gpuTempHigh = root.gpuTempC
       }
       root.prevGpuIdle = -1
       root.prevGpuWall = now
