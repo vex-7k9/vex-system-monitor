@@ -133,7 +133,7 @@ QtObject {
     var lines = [
       "LANG=C",
       "{",
-      "  read -r _ u n s i io irq so < /proc/stat; echo cpu $u $n $s $i $io $irq $so",
+      "  read -r _ u n s i io irq so < /proc/stat; echo cpu=cpu $u $n $s $i $io $irq $so",
       "  read -r cur < /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq || cur=NA; echo cur=$cur",
       "  read -r cmax < /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq || cmax=NA; echo cmax=$cmax",
       "  read -r ctemp < " + root.cpuTempPath + " || ctemp=NA; echo ctemp=$ctemp",
