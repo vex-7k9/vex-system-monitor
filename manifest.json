@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "jd.vex-system-monitor",
   "name": "Vex System Monitor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "jd",
   "license": "MIT",
-  "description": "Consolidated system monitor with CPU/GPU/RAM/Swap/Disk meters, fan monitoring, thermal envelope with color gradient, and hardware autodetection. Features a settings GUI with gear icon for modular feature toggles.",
+  "description": "Consolidated system monitor with CPU/GPU/RAM/Swap/Disk meters, fan monitoring, thermal envelope with color gradient, hardware autodetection, a settings GUI with gear icon, and a reusable desktop background carousel for the hover card (double-click to pick, right-click to clear).",
   "kinds": ["bar-widget"],
   "entryPoints": { "barWidget": "BarWidget.qml" },
   "settings": [

@@ -28,6 +28,7 @@ Click the gear icon (⚙) in the hover card to access settings:
 - **Bar/Card toggles**: Choose which meters appear in the bar vs hover card only
 - **Thresholds**: CPU/GPU/RAM/Swap/Disk warning levels
 - **Temperature gradient**: Auto-detected from hardware, or manually override
+- **Card bg**: Set the current background; left-click opens the desktop background carousel (arrow keys + Enter), right-click clears back to the default card
 
 **Hardware Detection**: On load the plugin detects your CPU and GPU models and looks up real-world thermal envelopes (idle/load/throttle/TjMax) from a built-in reference table covering most common CPU/GPU combos. Hover over the widget to see the detected hardware, its thermal limits, and the Idle/Load/Throttle/High/Now reference — High tracks the session max temp. If your hardware isn't in the table, sensible averaged defaults are used so the color gradient still works.
 
