@@ -10,7 +10,7 @@ import "Format.js" as Fmt
 // Features a settings GUI with gear icon in the hover card.
 BarWidget {
   id: root
-  moduleName: "jd.vex-system-monitor"
+  moduleName: "vex-system-monitor"
 
   // ---- settings (inline shell.json entry; fallback = manifest defaults) ----
   readonly property int updateIntervalMs: root.setting("fastPoll", true) ? 3000 : 6000
@@ -185,7 +185,7 @@ BarWidget {
   // the cardBackground setting and shown behind the card content. Arrow keys
   // move the carousel and Enter applies, exactly like the desktop picker.
   property string cardBackgroundPath: ""
-  readonly property string cardBgPickerScript: Quickshell.env("HOME") + "/.config/omarchy/plugins/jd.vex-system-monitor/card-bg-picker.sh"
+  readonly property string cardBgPickerScript: Quickshell.env("HOME") + "/.config/omarchy/plugins/vex-system-monitor/card-bg-picker.sh"
 
   readonly property string cardBackgroundName: {
     var p = root.cardBackgroundPath
