@@ -212,6 +212,13 @@
       "min": 70,
       "max": 110,
       "default": null
+    },
+    {
+      "key": "cardBackground",
+      "type": "string",
+      "label": "Card Background",
+      "description": "Background image for the hover card (double-click the card or its Card bg setting to pick one)",
+      "default": null
     }
   ]
 }

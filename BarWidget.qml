@@ -1,3 +1,5 @@
+import Quickshell
+import Quickshell.Io
 import QtQuick
 import qs.Ui
 import qs.Commons
@@ -146,7 +148,7 @@ BarWidget {
     "showCpu", "showGpu", "showNpu", "showRam", "showSwap", "showDisk", "showFans", "showThermals",
     "showCpuCard", "showGpuCard", "showNpuCard", "showRamCard", "showSwapCard", "showDiskCard", "showFansCard", "showThermalsCard",
     "cpuThreshold", "gpuThreshold", "npuThreshold", "memoryThreshold", "swapThreshold", "diskThreshold",
-    "cpuTempCool", "cpuTempHot", "gpuTempCool", "gpuTempHot"
+    "cpuTempCool", "cpuTempHot", "gpuTempCool", "gpuTempHot", "cardBackground"
   ]
 
   function knownSettingKey(k) {
@@ -172,7 +174,55 @@ BarWidget {
     }
   }
 
-  Component.onCompleted: root.migrateSettings()
+  Component.onCompleted: {
+    root.migrateSettings()
+    root.cardBackgroundPath = String(root.setting("cardBackground", "") || "").trim()
+  }
+
+  // ---- hover card background ----
+  // Double-clicking the card opens the same background carousel the desktop
+  // uses (omarchy-menu-images / image-selector); the picked image is stored in
+  // the cardBackground setting and shown behind the card content. Arrow keys
+  // move the carousel and Enter applies, exactly like the desktop picker.
+  property string cardBackgroundPath: ""
+  readonly property string cardBgPickerScript: Quickshell.env("HOME") + "/.config/omarchy/plugins/jd.vex-system-monitor/card-bg-picker.sh"
+
+  readonly property string cardBackgroundName: {
+    var p = root.cardBackgroundPath
+    if (!p) return "none (tap to pick)"
+    var base = p.replace(/\/+$/, "").split("/")
+    return base.length > 0 ? base[base.length - 1] : p
+  }
+
+  function pickCardBackground() {
+    if (root.cardBgPicker.running) return
+    root.cardBgPicker.command = ["bash", root.cardBgPickerScript, String(root.cardBackgroundPath || "")]
+    root.cardBgPicker.running = true
+  }
+
+  function clearCardBackground() {
+    root.cardBackgroundPath = ""
+    root.setSetting("cardBackground", "")
+  }
+
+  function loadCardBackgroundSetting() {
+    root.cardBackgroundPath = String(root.setting("cardBackground", "") || "").trim()
+  }
+
+  property Process cardBgPicker: Process {
+    stdout: StdioCollector {
+      id: cardBgOut
+      waitForEnd: true
+      onStreamFinished: {
+        if (cardBgOut.data.length > 65536) return
+        var sel = String(cardBgOut.text || "").trim()
+        if (sel) {
+          root.cardBackgroundPath = sel
+          root.persistSettings({ cardBackground: sel })
+        }
+      }
+    }
+  }
 
   readonly property real memRatio: stats.memTotalKb > 0 ? stats.memUsedKb / stats.memTotalKb : 0
   readonly property real swapRatio: stats.swapTotalKb > 0 ? stats.swapUsedKb / stats.swapTotalKb : 0
@@ -197,7 +247,10 @@ BarWidget {
     enabled: root.visible
   }
 
-  onSettingsChanged: svc.interval = root.setting("fastPoll", true) ? 3000 : 6000
+  onSettingsChanged: {
+    svc.interval = root.setting("fastPoll", true) ? 3000 : 6000
+    root.cardBackgroundPath = String(root.setting("cardBackground", "") || "").trim()
+  }
 
   property bool settingsOpen: false
 
@@ -338,6 +391,28 @@ BarWidget {
     contentWidth: popup.fittedContentWidth(
       Style.space(84 + 52 + 64 + 52 + 76 * 3) + Style.spacing.popupPadding * 2 + Style.space(8))
     contentHeight: popup.fittedContentHeight(details.implicitHeight)
+
+    // Hover-card background image (optional cardBackground setting). Painted
+    // behind the details column; double-click opens the desktop carousel.
+    Image {
+      id: cardBg
+      anchors.fill: parent
+      source: root.cardBackgroundPath ? Util.fileUrl(root.cardBackgroundPath) : ""
+      fillMode: Image.PreserveAspectCrop
+      asynchronous: true
+      smooth: true
+      visible: root.cardBackgroundPath !== ""
+      opacity: 0.42
+    }
+
+    MouseArea {
+      id: cardBgHit
+      anchors.fill: parent
+      // Only double-click goes to the picker; single clicks on rows above
+      // still reach the gear and settings toggles because they sit on top.
+      acceptedButtons: Qt.LeftButton
+      onDoubleClicked: root.pickCardBackground()
+    }
 
     Column {
       id: details
@@ -887,6 +962,29 @@ BarWidget {
             font.family: root.fam; font.pixelSize: Style.font.bodySmall
             color: root.normalColor
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: svc.resetSessionHigh() }
+          }
+        }
+
+        // Hover-card background (double-click the card also opens the picker)
+        Row {
+          width: parent.width
+          spacing: Style.spacing.sm
+          Text { width: Style.space(84); text: "Card bg:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+          Text {
+            width: parent.width - Style.space(84) - Style.spacing.sm
+            text: root.cardBackgroundName
+            elide: Text.ElideRight
+            font.family: root.fam; font.pixelSize: Style.font.bodySmall
+            color: root.normalColor
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              acceptedButtons: Qt.LeftButton | Qt.RightButton
+              onClicked: function(mouse) {
+                if (mouse.button === Qt.RightButton) root.clearCardBackground()
+                else root.pickCardBackground()
+              }
+            }
           }
         }
       }
