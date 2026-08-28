@@ -28,7 +28,7 @@ Click the gear icon (⚙) in the hover card to access settings:
 - **Thresholds**: CPU/GPU/RAM/Swap/Disk warning levels
 - **Temperature gradient**: Auto-detected from hardware, or manually override
 
-**Hardware Detection**: The plugin automatically detects your CPU and GPU models and sets appropriate thermal limits (TjMax). Hover over the widget to see detected hardware and thermal limits.
+**Hardware Detection**: On load the plugin detects your CPU and GPU models and looks up real-world thermal envelopes (idle/load/peak/TjMax) from a built-in reference table covering most common CPU/GPU combos. Hover over the widget to see the detected hardware, its thermal limits, and the Idle/Load/Peak/Now reference. If your hardware isn't in the table, sensible averaged defaults are used so the color gradient still works.
 
 ## Hardware Temperature Reference
 
@@ -42,7 +42,7 @@ Use these ranges to set your thermal gradient (cool/hot) values:
 | Heavy load | 85–95°C | 80–87°C | Check airflow |
 | Throttle | 95–100°C+ | 88–95°C+ | Chip slows itself to survive |
 
-**Default gradient values**: CPU cool=45/hot=85, GPU cool=45/hot=80
+**Default gradient values**: Auto-derived from the detected hardware's thermal spec (idle→peak TjMax); falls back to an averaged envelope when hardware is unknown. Manual overrides are still available via the settings.
 
 **AMD Ryzen**: TjMax is 95°C (including 9800X3D/9950X3D)
 **Intel**: TjMax is 100–105°C (Arrow Lake: 105°C)

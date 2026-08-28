@@ -20,11 +20,13 @@ BarWidget {
   readonly property int diskThreshold: root.setting("diskThreshold", 90)
 
   // -- temp color scale (green -> amber -> red across the thermal envelope). --
-  // Uses detected TjMax from hardware, with user override via settings.
-  readonly property int cpuTempCool: root.setting("cpuTempCool", Math.max(40, stats.cpuTjMax - 50))
-  readonly property int cpuTempHot:  root.setting("cpuTempHot", stats.cpuTjMax)
-  readonly property int gpuTempCool: root.setting("gpuTempCool", Math.max(40, stats.gpuTjMax - 45))
-  readonly property int gpuTempHot:  root.setting("gpuTempHot", stats.gpuTjMax)
+  // Uses the detected thermal spec from the reference table (idle as the cool
+  // end, peak/TjMax as the hot end), with user override via settings. On
+  // unknown hardware ThermalData.js falls back to generic envelopes.
+  readonly property int cpuTempCool: root.setting("cpuTempCool", Math.max(30, stats.cpuIdleTemp - 5))
+  readonly property int cpuTempHot:  root.setting("cpuTempHot", stats.cpuPeakTemp)
+  readonly property int gpuTempCool: root.setting("gpuTempCool", Math.max(30, stats.gpuIdleTemp - 5))
+  readonly property int gpuTempHot:  root.setting("gpuTempHot", stats.gpuPeakTemp)
 
   // -- color mode: "theme" = Omarchy accent/urgent, "custom" = green/red gradient --
   readonly property string colorMode: root.setting("colorMode", "theme")
@@ -463,9 +465,9 @@ BarWidget {
       ThermalSpec {
         visible: root.showThermalsCard
         label: "CPU"
-        idle: root.cpuTempCool
-        load: Math.round((root.cpuTempCool + root.cpuTempHot) / 2)
-        peak: root.cpuTempHot
+        idle: stats.cpuIdleTemp
+        load: stats.cpuLoadTemp
+        peak: stats.cpuPeakTemp
         current: stats.cpuTempC
         color: root.cpuTempColor
         fontFamily: root.fam
@@ -474,9 +476,9 @@ BarWidget {
       ThermalSpec {
         visible: root.showThermalsCard && root.showGpuCard
         label: "GPU"
-        idle: root.gpuTempCool
-        load: Math.round((root.gpuTempCool + root.gpuTempHot) / 2)
-        peak: root.gpuTempHot
+        idle: stats.gpuIdleTemp
+        load: stats.gpuLoadTemp
+        peak: stats.gpuPeakTemp
         current: stats.gpuTempC
         color: root.gpuTempColor
         fontFamily: root.fam

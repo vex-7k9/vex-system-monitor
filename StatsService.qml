@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell.Io
+import "ThermalData.js" as Thermal
 
 // Polled CPU / GPU / NPU / RAM / swap / disk monitor.
 //
@@ -64,10 +65,19 @@ QtObject {
   property real prevNpuWall: 0
 
   // ---- hardware model detection ----
+  // Full thermal spec (idle/load/peak/tjMax) per detected hardware, sourced
+  // from ThermalData.js. Falls back to generic envelopes when the model is
+  // unknown, so the color scale and reference table always have sane values.
   property string cpuModel: ""
   property string gpuModel: ""
-  property int cpuTjMax: 95   // default AMD TjMax
-  property int gpuTjMax: 93   // default NVIDIA TjMax
+  property int cpuTjMax: Thermal.getDefaultCpu().tjMax
+  property int gpuTjMax: Thermal.getDefaultGpu().tjMax
+  property int cpuIdleTemp: Thermal.getDefaultCpu().idle
+  property int cpuLoadTemp: Thermal.getDefaultCpu().load
+  property int cpuPeakTemp: Thermal.getDefaultCpu().peak
+  property int gpuIdleTemp: Thermal.getDefaultGpu().idle
+  property int gpuLoadTemp: Thermal.getDefaultGpu().load
+  property int gpuPeakTemp: Thermal.getDefaultGpu().peak
 
   function refresh() {
     if (!pollProc.running) {
@@ -191,12 +201,16 @@ QtObject {
   Component.onCompleted: clockProc.running = true
 
   // ---- hardware detection script ----
-  // Fixed absolute path for nvidia-smi.
+  // Fixed absolute paths. nvidia-smi is primary; falls back to lspci so AMD /
+  // Intel / unknown GPUs still get a model string for the thermal lookup table.
+  // Output is capped (head -1) so the collector stays bounded.
   readonly property string hwDetectScript: [
     "LANG=C",
     "{",
     "  echo cpumodel=$(/usr/bin/grep -m1 'model name' /proc/cpuinfo | /usr/bin/cut -d: -f2 | /usr/bin/xargs)",
-    "  echo gpumodel=$(/usr/bin/nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo NA)",
+"  echo gpumodel=$(/usr/bin/nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null ||",
+    "    /usr/bin/lspci 2>/dev/null | /usr/bin/grep -E 'VGA|3D' | /usr/bin/head -1 | /usr/bin/awk -F': ' '{print $2}' ||",
+    "    echo NA)",
     "}"
   ].join("\n")
 
@@ -231,52 +245,19 @@ QtObject {
     }
     root.cpuModel = String(raw.cpumodel || "").trim()
     root.gpuModel = String(raw.gpumodel || "").trim()
-    root.cpuTjMax = detectCpuTjMax(root.cpuModel)
-    root.gpuTjMax = detectGpuTjMax(root.gpuModel)
-  }
 
-  // CPU TjMax lookup by model family/name
-  function detectCpuTjMax(model) {
-    var m = model.toLowerCase()
-    // AMD Ryzen 7000/9000 series (Zen 4/5) - 95°C TjMax
-    if (m.includes("ryzen 9") || m.includes("ryzen 7") || m.includes("ryzen 5")) {
-      if (m.includes("7") || m.includes("9") || m.includes("5")) return 95
-    }
-    // AMD Ryzen 5000 series (Zen 3) - 90°C TjMax
-    if (m.includes("5600") || m.includes("5700") || m.includes("5800") || m.includes("5900") || m.includes("5950")) return 90
-    // AMD Ryzen 3000 series (Zen 2) - 95°C TjMax
-    if (m.includes("3") && m.includes("ryzen")) return 95
-    // Intel 12th-14th gen - 100°C TjMax
-    if (m.includes("i9") || m.includes("i7") || m.includes("i5") || m.includes("i3")) {
-      if (m.includes("12") || m.includes("13") || m.includes("14") || m.includes("ultra")) return 100
-    }
-    // Intel Arrow Lake (Core Ultra 200S) - 105°C TjMax
-    if (m.includes("ultra") && m.includes("2")) return 105
-    // Intel older gen - 100°C TjMax
-    if (m.includes("intel") || m.includes("core")) return 100
-    // Default
-    return 95
-  }
-
-  // GPU TjMax lookup by model
-  function detectGpuTjMax(model) {
-    var m = model.toLowerCase()
-    // NVIDIA RTX 40/50 series - 83°C target, 90°C throttle
-    if (m.includes("40") || m.includes("50")) return 83
-    // NVIDIA RTX 30 series - 83°C target, 93°C throttle
-    if (m.includes("30")) return 83
-    // NVIDIA RTX 20 series - 84°C target, 88°C throttle
-    if (m.includes("20")) return 84
-    // NVIDIA GTX 16 series - 83°C target
-    if (m.includes("16")) return 83
-    // NVIDIA older - 85°C target
-    if (m.includes("gtx") || m.includes("nvidia")) return 85
-    // AMD RDNA 3 (RX 7000) - 85°C target, 110°C hotspot
-    if (m.includes("7")) return 85
-    // AMD RDNA 2 (RX 6000) - 80°C target, 110°C hotspot
-    if (m.includes("6")) return 80
-    // Default
-    return 85
+    // Real-world thermal spec for the detected hardware (idle/load/peak/
+    // tjMax). Falls back to generic envelopes when the model is unknown.
+    const cth = Thermal.detectCpu(root.cpuModel)
+    const gth = Thermal.detectGpu(root.gpuModel)
+    root.cpuIdleTemp = cth.idle
+    root.cpuLoadTemp = cth.load
+    root.cpuPeakTemp = cth.peak
+    root.cpuTjMax = cth.tjMax
+    root.gpuIdleTemp = gth.idle
+    root.gpuLoadTemp = gth.load
+    root.gpuPeakTemp = gth.peak
+    root.gpuTjMax = gth.tjMax
   }
 
   function parse(text) {
