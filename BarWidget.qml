@@ -346,7 +346,6 @@ BarWidget {
       Item { width: Style.spaceReal(8); height: 1 }
 
       MeterText {
-  textFormat: Text.PlainText
         label: "cpu: " + Fmt.pct01(stats.cpuUsage)
         temp: stats.cpuTempC > 0 ? " " + Fmt.tempC(stats.cpuTempC) : ""
         tempColor: root.cpuTempColor
@@ -359,7 +358,6 @@ BarWidget {
         visible: root.showCpu
       }
       MeterText {
-  textFormat: Text.PlainText
         label: "gpu: " + Fmt.pct01(stats.gpuUsage)
         temp: stats.gpuTempC > 0 ? " " + Fmt.tempC(stats.gpuTempC) : ""
         tempColor: root.gpuTempColor
@@ -372,7 +370,6 @@ BarWidget {
         visible: root.showGpu
       }
       MeterText {
-  textFormat: Text.PlainText
         label: "npu: " + Fmt.pct01(stats.npuUsage)
         warn: root.warn(stats.npuUsage, root.npuThreshold)
         meterFontSize: root.meterFontSize
@@ -383,7 +380,6 @@ BarWidget {
         visible: root.showNpu
       }
       MeterText {
-  textFormat: Text.PlainText
         label: "ram: " + Fmt.pct01(root.memRatio)
         warn: root.warn(root.memRatio, root.memoryThreshold)
         meterFontSize: root.meterFontSize
@@ -394,7 +390,6 @@ BarWidget {
         visible: root.showRam
       }
       MeterText {
-  textFormat: Text.PlainText
         label: "swap: " + Fmt.pct01(root.swapRatio)
         warn: root.warn(root.swapRatio, root.swapThreshold)
         meterFontSize: root.meterFontSize
@@ -405,7 +400,6 @@ BarWidget {
         visible: root.showSwap
       }
       MeterText {
-  textFormat: Text.PlainText
         label: "disk: " + Fmt.pct01(stats.diskPct / 100)
         warn: root.warn(stats.diskPct / 100, root.diskThreshold)
         meterFontSize: root.meterFontSize
@@ -416,7 +410,6 @@ BarWidget {
         visible: root.showDisk
       }
       MeterText {
-  textFormat: Text.PlainText
         label: "fan: " + (fans.loaded ? (fans.fans.length > 0 ? fans.fans[0].rpm + " RPM" : "no sensors") : "...")
         pct: fans.hasDeadFan ? "STOPPED" : ""
         warn: fans.hasDeadFan
@@ -484,19 +477,19 @@ BarWidget {
         width: parent.width
         spacing: 0
         Text {
-          textFormat: Text.PlainText width: Style.space(84); text: "" }
+          textFormat: Text.PlainText; width: Style.space(84); text: "" }
         Text {
-          textFormat: Text.PlainText width: Style.space(52); text: "Load"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+          textFormat: Text.PlainText; width: Style.space(52); text: "Load"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
         Text {
-          textFormat: Text.PlainText width: Style.space(64); text: "Freq"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+          textFormat: Text.PlainText; width: Style.space(64); text: "Freq"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
         Text {
-          textFormat: Text.PlainText width: Style.space(52); text: "Temp"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+          textFormat: Text.PlainText; width: Style.space(52); text: "Temp"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
         Text {
-          textFormat: Text.PlainText width: Style.space(76); text: "Used"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+          textFormat: Text.PlainText; width: Style.space(76); text: "Used"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
         Text {
-          textFormat: Text.PlainText width: Style.space(76); text: "Free"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+          textFormat: Text.PlainText; width: Style.space(76); text: "Free"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
         Text {
-          textFormat: Text.PlainText width: Style.space(76); text: "Total"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+          textFormat: Text.PlainText; width: Style.space(76); text: "Total"; font.family: root.fam; font.pixelSize: Style.font.caption; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
       }
 
       // gear icon - left aligned above CPU
@@ -802,11 +795,11 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: ""; font.family: root.fam; font.pixelSize: Style.font.bodySmall }
+            textFormat: Text.PlainText; width: Style.space(84); text: ""; font.family: root.fam; font.pixelSize: Style.font.bodySmall }
           Text {
-            textFormat: Text.PlainText width: Style.space(52); text: "Bar"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+            textFormat: Text.PlainText; width: Style.space(52); text: "Bar"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
           Text {
-            textFormat: Text.PlainText width: Style.space(52); text: "Card"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
+            textFormat: Text.PlainText; width: Style.space(52); text: "Card"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6); horizontalAlignment: Text.AlignRight }
         }
 
         // CPU
@@ -814,7 +807,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "CPU:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "CPU:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             textFormat: Text.PlainText
             width: Style.space(52); horizontalAlignment: Text.AlignRight
@@ -838,7 +831,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "GPU:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "GPU:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             textFormat: Text.PlainText
             width: Style.space(52); horizontalAlignment: Text.AlignRight
@@ -862,7 +855,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "NPU:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "NPU:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             textFormat: Text.PlainText
             width: Style.space(52); horizontalAlignment: Text.AlignRight
@@ -886,7 +879,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "RAM:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "RAM:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             textFormat: Text.PlainText
             width: Style.space(52); horizontalAlignment: Text.AlignRight
@@ -910,7 +903,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "Swap:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "Swap:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             textFormat: Text.PlainText
             width: Style.space(52); horizontalAlignment: Text.AlignRight
@@ -934,7 +927,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "Disk:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "Disk:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             textFormat: Text.PlainText
             width: Style.space(52); horizontalAlignment: Text.AlignRight
@@ -958,7 +951,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "Fans:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "Fans:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             textFormat: Text.PlainText
             width: Style.space(52); horizontalAlignment: Text.AlignRight
@@ -982,7 +975,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "Thermals:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "Thermals:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             textFormat: Text.PlainText
             width: Style.space(52); horizontalAlignment: Text.AlignRight
@@ -1006,9 +999,9 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "CPU cool:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "CPU cool:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
-            textFormat: Text.PlainText width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempCool", -5, 30, 60) } }
+            textFormat: Text.PlainText; width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempCool", -5, 30, 60) } }
           Text {
             textFormat: Text.PlainText
             width: Style.space(66); horizontalAlignment: Text.AlignHCenter
@@ -1018,16 +1011,16 @@ BarWidget {
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.setSetting("cpuTempCool", undefined) }
           }
           Text {
-            textFormat: Text.PlainText width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempCool", 5, 30, 60) } }
+            textFormat: Text.PlainText; width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempCool", 5, 30, 60) } }
         }
 
         Row {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "CPU hot:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "CPU hot:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
-            textFormat: Text.PlainText width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempHot", -5, 70, 110) } }
+            textFormat: Text.PlainText; width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempHot", -5, 70, 110) } }
           Text {
             textFormat: Text.PlainText
             width: Style.space(66); horizontalAlignment: Text.AlignHCenter
@@ -1037,16 +1030,16 @@ BarWidget {
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.setSetting("cpuTempHot", undefined) }
           }
           Text {
-            textFormat: Text.PlainText width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempHot", 5, 70, 110) } }
+            textFormat: Text.PlainText; width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("cpuTempHot", 5, 70, 110) } }
         }
 
         Row {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "GPU cool:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "GPU cool:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
-            textFormat: Text.PlainText width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempCool", -5, 30, 60) } }
+            textFormat: Text.PlainText; width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempCool", -5, 30, 60) } }
           Text {
             textFormat: Text.PlainText
             width: Style.space(66); horizontalAlignment: Text.AlignHCenter
@@ -1056,16 +1049,16 @@ BarWidget {
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.setSetting("gpuTempCool", undefined) }
           }
           Text {
-            textFormat: Text.PlainText width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempCool", 5, 30, 60) } }
+            textFormat: Text.PlainText; width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempCool", 5, 30, 60) } }
         }
 
         Row {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "GPU hot:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "GPU hot:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
-            textFormat: Text.PlainText width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempHot", -5, 70, 110) } }
+            textFormat: Text.PlainText; width: Style.space(16); text: "\u2212"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempHot", -5, 70, 110) } }
           Text {
             textFormat: Text.PlainText
             width: Style.space(66); horizontalAlignment: Text.AlignHCenter
@@ -1075,7 +1068,7 @@ BarWidget {
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.setSetting("gpuTempHot", undefined) }
           }
           Text {
-            textFormat: Text.PlainText width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempHot", 5, 70, 110) } }
+            textFormat: Text.PlainText; width: Style.space(16); text: "+"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: root.normalColor; horizontalAlignment: Text.AlignHCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.bumpTemp("gpuTempHot", 5, 70, 110) } }
         }
 
         // Session-high temps reset
@@ -1083,7 +1076,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "Highs:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "Highs:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             textFormat: Text.PlainText
             text: "reset"
@@ -1098,7 +1091,7 @@ BarWidget {
           width: parent.width
           spacing: Style.spacing.sm
           Text {
-            textFormat: Text.PlainText width: Style.space(84); text: "Card bg:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
+            textFormat: Text.PlainText; width: Style.space(84); text: "Card bg:"; font.family: root.fam; font.pixelSize: Style.font.bodySmall; color: Util.alpha(root.normalColor, 0.6) }
           Text {
             width: parent.width - Style.space(84) - Style.spacing.sm
             text: root.cardBackgroundName
