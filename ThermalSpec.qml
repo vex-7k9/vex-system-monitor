@@ -48,7 +48,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: spec.color
     horizontalAlignment: Text.AlignLeft
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: spec.colLoad
@@ -57,7 +57,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: spec.specColor(spec.idle)
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: spec.colFreq
@@ -66,7 +66,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: spec.specColor(spec.load)
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: spec.colPeak
@@ -75,7 +75,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: spec.specColor(spec.peak)
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: spec.colHigh
@@ -84,7 +84,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: spec.specColor(spec.high)
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: spec.colCur
@@ -93,6 +93,6 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: spec.color
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
 }

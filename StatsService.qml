@@ -151,7 +151,9 @@ QtObject {
       "  read -r nmax < /sys/class/accel/accel0/device/npu_max_frequency_mhz || nmax=NA; echo nmax=$nmax",
       "  read -r nmem < /sys/class/accel/accel0/device/npu_memory_utilization || nmem=NA; echo nmem=$nmem",
       "  echo disk=$(/usr/bin/df -P / | /usr/bin/awk 'NR==2 {print $2, $3, $4, $5}')",
-      "} 2>/dev/null"
+      // Cap stdout at the producer: the collector can never buffer more than
+      // this even if a helper misbehaves or storms output.
+      "} 2>/dev/null | /usr/bin/head -c 1048576"
     ])
     return lines
   }
@@ -159,7 +161,10 @@ QtObject {
   property string snapshotScript: root._snapshotLines().join("\n")
 
   property Process pollProc: Process {
-    command: ["sh", "-c", root.snapshotScript]
+    // setsid detaches the whole job into its own process group so the watchdog
+    // can kill the group -- the shell and every helper it spawned -- instead of
+    // only the direct child. Command is fully absolute (no $PATH lookups).
+    command: ["/usr/bin/setsid", "/bin/sh", "-c", root.snapshotScript]
     stdout: StdioCollector {
       id: pollOutput
       waitForEnd: true
@@ -175,8 +180,27 @@ QtObject {
     interval: root._timeoutMs
     repeat: false
     onTriggered: {
-      if (pollProc.running) pollProc.kill()
+      if (pollProc.running) root.killProcessGroup(pollProc)
     }
+  }
+
+  // Reusable helper that SIGTERMs then SIGKILLs a whole process group by
+  // process-group id. Setsid makes the launched process its own group leader,
+  // so group id == processId; -pid kills the shell AND every descendant.
+  property Process groupKiller: Process {
+    command: []
+  }
+
+  function killProcessGroup(tgt) {
+    var pid = String(tgt.processId || "")
+    if (!pid || pid === "") return
+    if (root.groupKiller.running) return
+    root.groupKiller.command = [
+      "/bin/sh", "-c",
+      "kill -TERM -- -$1 2>/dev/null; sleep 0.3; kill -KILL -- -$1 2>/dev/null || true",
+      "grpkill", pid
+    ]
+    root.groupKiller.running = true
   }
 
   // Static clock read (NVMe link speed) — one-shot at startup, not per poll.
@@ -187,11 +211,11 @@ QtObject {
     "LANG=C",
     "{",
     "  echo ssd=$(/usr/bin/cat /sys/class/nvme/nvme*/device/current_link_speed 2>/dev/null | /usr/bin/head -1)",
-    "}"
+    "} 2>/dev/null | /usr/bin/head -c 4096"
   ].join("\n")
 
   property Process clockProc: Process {
-    command: ["sh", "-c", root.clockScript]
+    command: ["/usr/bin/setsid", "/bin/sh", "-c", root.clockScript]
     stdout: StdioCollector {
       id: clockOutput
       waitForEnd: true
@@ -207,7 +231,7 @@ QtObject {
     interval: root._timeoutMs
     repeat: false
     onTriggered: {
-      if (clockProc.running) clockProc.kill()
+      if (clockProc.running) root.killProcessGroup(clockProc)
     }
   }
 
@@ -220,7 +244,14 @@ QtObject {
       raw[line.slice(0, i)] = line.slice(i + 1)
     }
     // Trim the trailing " PCIe" so "8.0 GT/s PCIe" fits the freq column.
-    root.diskSpeed = String(raw.ssd || "").replace(/\s*PCIe$/, "").trim()
+    root.diskSpeed = root.boundText(String(raw.ssd || "").replace(/\s*PCIe$/, "").trim(), 48)
+  }
+
+  // Bounded text: strip control characters (including embedded HTML/CRLF) and
+  // cap the length so external strings stay display-safe and small.
+  function boundText(s, max) {
+    var t = String(s || "").replace(/[\x00-\x1f\x7f]/g, " ").replace(/\s+/g, " ").trim()
+    return t.length > max ? t.slice(0, max) : t
   }
 
   Component.onCompleted: clockProc.running = true
@@ -243,11 +274,11 @@ QtObject {
     "      case \"$n\" in k10temp|coretemp) echo \"$d/temp1_input\"; break;; esac",
     "    done)",
     "  echo hwmonp=${hwmonp:-NA}",
-    "}"
+    "} 2>/dev/null | /usr/bin/head -c 16384"
   ].join("\n")
 
   property Process hwDetectProc: Process {
-    command: ["sh", "-c", root.hwDetectScript]
+    command: ["/usr/bin/setsid", "/bin/sh", "-c", root.hwDetectScript]
     stdout: StdioCollector {
       id: hwDetectOutput
       waitForEnd: true
@@ -263,7 +294,7 @@ QtObject {
     interval: root._timeoutMs
     repeat: false
     onTriggered: {
-      if (hwDetectProc.running) hwDetectProc.kill()
+      if (hwDetectProc.running) root.killProcessGroup(hwDetectProc)
     }
   }
 
@@ -275,14 +306,14 @@ QtObject {
       if (i < 0) continue
       raw[line.slice(0, i)] = line.slice(i + 1)
     }
-    root.cpuModel = String(raw.cpumodel || "").trim()
-    root.gpuModel = String(raw.gpumodel || "").trim()
+    root.cpuModel = root.boundText(String(raw.cpumodel || ""), 96)
+    root.gpuModel = root.boundText(String(raw.gpumodel || ""), 96)
 
     // Resolve the CPU temp sensor path (k10temp/coretemp) and whether an
     // NVIDIA GPU is present — gates nvidia-smi polling in the snapshot.
-    root.cpuTempPath = (raw.hwmonp && raw.hwmonp !== "NA")
+    root.cpuTempPath = root.boundText((raw.hwmonp && raw.hwmonp !== "NA")
       ? raw.hwmonp
-      : "/sys/class/hwmon/hwmon1/temp1_input"
+      : "/sys/class/hwmon/hwmon1/temp1_input", 512)
     root.hasNvidia = root.gpuModel.toLowerCase().indexOf("nvidia") >= 0 || root.gpuModel.toLowerCase().indexOf("geforce") >= 0
     root.hwDetected = true
 

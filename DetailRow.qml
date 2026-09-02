@@ -40,7 +40,7 @@ Row {
       font.family: row.labelGlyphFont !== "" ? row.labelGlyphFont : row.fontFamily
       font.pixelSize: Style.font.bodySmall
       color: row.normalColor
-      renderType: Text.NativeRendering
+      renderType: Text.NativeRendering; textFormat: Text.PlainText
     }
     Text {
       text: row.label
@@ -48,7 +48,7 @@ Row {
       font.pixelSize: Style.font.bodySmall
       color: row.normalColor
       horizontalAlignment: Text.AlignLeft
-      renderType: Text.NativeRendering
+      renderType: Text.NativeRendering; textFormat: Text.PlainText
     }
   }
   Text {
@@ -58,7 +58,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: row.color
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: row.colFreq
@@ -67,7 +67,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: row.normalColor
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: row.colTemp
@@ -76,7 +76,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: row.normalColor
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: row.colUsed
@@ -85,7 +85,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: row.normalColor
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: row.colFree
@@ -94,7 +94,7 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: row.normalColor
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
   Text {
     width: row.colTotal
@@ -103,6 +103,6 @@ Row {
     font.pixelSize: Style.font.bodySmall
     color: row.normalColor
     horizontalAlignment: Text.AlignRight
-    renderType: Text.NativeRendering
+    renderType: Text.NativeRendering; textFormat: Text.PlainText
   }
 }

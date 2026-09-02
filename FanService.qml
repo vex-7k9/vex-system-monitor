@@ -5,9 +5,11 @@ import Quickshell.Io
 // 30 seconds for low overhead. Parses per-fan RPM and per-chip temperatures
 // (CPU package, board sensors, NVMe).
 //
-// Security: the collector has a 10 s wall-clock timeout enforced by a Timer
-// that calls kill(), and a 512 KiB byte ceiling checked on streamFinished.
-// The `sensors` helper uses a fixed absolute path so $PATH cannot redirect it.
+// Security: the helper runs inside a setsid process group with its stdout
+// capped at the producer (head -c), a 10 s wall-clock watchdog that kills the
+// whole group, and a byte ceiling kept as defense in depth. Sensor names are
+// bounded and control-char-stripped before rendering. Fixed absolute paths so
+// a hijacked $PATH cannot redirect any executable.
 QtObject {
   id: root
 
@@ -20,6 +22,12 @@ QtObject {
   // ---- security limits ----
   readonly property int _maxBytes: 524288   // 512 KiB — reject collector overflow
   readonly property int _timeoutMs: 10000  // 10 s wall-clock deadline
+
+  // Bounded text: strip control characters and cap length for display-safe names.
+  function boundText(s, max) {
+    var t = String(s || "").replace(/[\x00-\x1f\x7f]/g, " ").replace(/\s+/g, " ").trim()
+    return t.length > max ? t.slice(0, max) : t
+  }
 
   readonly property bool hasDeadFan: {
     var f = fans
@@ -65,13 +73,13 @@ QtObject {
             if (sname.indexOf("fan") === 0) {
               var fk = sname + "_input"
               if (sval.hasOwnProperty(fk))
-                newFans.push({ name: sname, rpm: Math.round(sval[fk]) })
+                newFans.push({ name: root.boundText(sname, 32), rpm: Math.round(sval[fk]) })
             } else if (sname.indexOf("temp") === 0) {
               var tk = sname + "_input"
               if (sval.hasOwnProperty(tk)) {
                 var t = sval[tk]
                 if (t > -50 && t < 120)
-                  newTemps.push({ name: "Board " + sname.replace("temp", ""), value: t.toFixed(1) })
+                  newTemps.push({ name: "Board " + root.boundText(sname.replace("temp", ""), 28), value: t.toFixed(1) })
               }
             }
           }
@@ -100,7 +108,7 @@ QtObject {
               if (vkeys[ki].indexOf("_input") !== -1) {
                 var t = sval[vkeys[ki]]
                 if (t > -50 && t < 100)
-                  newTemps.push({ name: "NVMe " + chip.slice(-4), value: t.toFixed(1) })
+                  newTemps.push({ name: "NVMe " + root.boundText(chip.slice(-4), 16), value: t.toFixed(1) })
                 break
               }
             }
@@ -115,7 +123,10 @@ QtObject {
   }
 
   property Process sensorsProc: Process {
-    command: ["/usr/bin/sensors", "-j"]
+    // setsid -> own process group (group id == processId) so the watchdog can
+    // kill the helper and every descendant; head -c bounds the stream at the
+    // producer so the collector never buffers unbounded output.
+    command: ["/usr/bin/setsid", "/bin/sh", "-c", "/usr/bin/sensors -j | /usr/bin/head -c 524288"]
     stdout: StdioCollector {
       id: sensorsOutput
       waitForEnd: true
@@ -127,11 +138,27 @@ QtObject {
     }
   }
 
+  property Process fanKiller: Process {
+    command: []
+  }
+
+  function killProcessGroup() {
+    var pid = String(sensorsProc.processId || "")
+    if (!pid || pid === "") return
+    if (root.fanKiller.running) return
+    root.fanKiller.command = [
+      "/bin/sh", "-c",
+      "kill -TERM -- -$1 2>/dev/null; sleep 0.3; kill -KILL -- -$1 2>/dev/null || true",
+      "grpkill", pid
+    ]
+    root.fanKiller.running = true
+  }
+
   property Timer sensorsWatchdog: Timer {
     interval: root._timeoutMs
     repeat: false
     onTriggered: {
-      if (sensorsProc.running) sensorsProc.kill()
+      if (sensorsProc.running) root.killProcessGroup()
     }
   }
 

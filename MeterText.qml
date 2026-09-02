@@ -49,7 +49,7 @@ Item {
       color: root.meterColor
       font.family: root.glyphFamily
       font.pixelSize: root.meterFontSize
-      renderType: Text.NativeRendering
+      renderType: Text.NativeRendering; textFormat: Text.PlainText
     }
     Text {
       visible: root.iconMode
@@ -57,7 +57,7 @@ Item {
       color: root.meterColor
       font.family: root.fontFamily
       font.pixelSize: root.meterFontSize
-      renderType: Text.NativeRendering
+      renderType: Text.NativeRendering; textFormat: Text.PlainText
     }
     Text {
       visible: !root.iconMode
@@ -65,7 +65,7 @@ Item {
       color: root.meterColor
       font.family: root.fontFamily
       font.pixelSize: root.meterFontSize
-      renderType: Text.NativeRendering
+      renderType: Text.NativeRendering; textFormat: Text.PlainText
     }
     Text {
       visible: root.temp !== ""
@@ -73,7 +73,7 @@ Item {
       color: root.tempColor
       font.family: root.tempFamily
       font.pixelSize: root.tempFontSize
-      renderType: Text.NativeRendering
+      renderType: Text.NativeRendering; textFormat: Text.PlainText
     }
   }
 }
