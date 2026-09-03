@@ -95,10 +95,12 @@ QtObject {
 
   function refresh() {
     if (!pollProc.running) {
+      root._g["poll"].armed = false
       pollProc.running = true
       pollWatchdog.restart()
     }
     if (!hwDetectProc.running) {
+      root._g["hw"].armed = false
       hwDetectProc.running = true
       hwDetectWatchdog.restart()
     }
@@ -160,47 +162,167 @@ QtObject {
 
   property string snapshotScript: root._snapshotLines().join("\n")
 
+  // ---- process-group teardown engine ----
+  //
+  // Each producer (poll / clock / hwDetect) is created under setsid so its
+  // leader PID == PGID. Teardown is instance-bound: every producer has its own
+  // armed state + deadline watchdog, so a concurrent teardown is never dropped
+  // by a shared half-open killer. One shared killProc worker serializes the
+  // actual shell passes.
+  //
+  // PID-reuse safety: bash reads /proc/<pgid>/stat field 22 (starttime) and we
+  // pass back the value seen at arm time; before every signal bash re-checks
+  // that the live starttime still equals it. A group whose leader was reaped
+  // and replaced by an unrelated process is treated as GONE and never touched.
+  // The deadline keeps firing (repeat=true) until the group is actually
+  // reaped — stream-close alone does not clear it.
+  property var _g: ({
+    poll:  { armed: false, pgid: "", start: "", block: false },
+    clock: { armed: false, pgid: "", start: "", block: false },
+    hw:    { armed: false, pgid: "", start: "", block: false }
+  })
+  property var _gWatch: ({
+    poll: root.pollWatchdog, clock: root.clockWatchdog, hw: root.hwDetectWatchdog
+  })
+
+  property Process killProc: Process {
+    command: []
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var status = String(text || "").trim()
+        var c = root._stepFor
+        root._stepFor = ""
+        var st = root._g[c]
+        if (!st) return
+        if (status.indexOf("GONE") === 0) {
+          st.armed = false
+          root._gWatch[c].stop()
+        } else if (status.indexOf("START=") === 0) {
+          st.start = status.substring(6).trim()
+        }
+      }
+    }
+  }
+
+  // Run one bash pass for producer c with the given signal. want = expected
+  // starttime ("" on first arm). Outputs GONE when the group is absent or
+  // reused, else START=<starttime>.
+  function _step(c, sig) {
+    var st = root._g[c]
+    if (!st.armed || !st.pgid) return
+    if (root.killProc.running) return
+    root._stepFor = c
+    root.killProc.command = [
+      "/bin/sh", "-c",
+      "pid=$1; want=$2; sig=$3\n" +
+      "f=/proc/$pid/stat\n" +
+      "[ -e \"$f\" ] || { echo GONE; exit 0; }\n" +
+      "start=$(/usr/bin/awk '{print $22}' \"$f\" 2>/dev/null || true)\n" +
+      "[ -n \"$want\" ] && [ \"$start\" != \"$want\" ] && { echo GONE; exit 0; }\n" +
+      "kill -$sig -- -$pid 2>/dev/null || true\n" +
+      "echo START=$start",
+      "grpkill", st.pgid, st.start, sig
+    ]
+    root.killProc.running = true
+  }
+
+  // Arm teardown for a producer: record pgid and TERM its group; the deadline
+  // watchdog thereafter escalates and keeps going until the group is reaped.
+  function killProcessGroup(tgt) {
+    var c = ""
+    if (tgt === root.pollProc) c = "poll"
+    else if (tgt === root.clockProc) c = "clock"
+    else if (tgt === root.hwDetectProc) c = "hw"
+    if (!c) return
+    var st = root._g[c]
+    if (st.armed) return
+    st.armed = true
+    st.pgid = String(tgt.processId || "")
+    if (st.pgid === "") { st.armed = false; return }
+    st.start = ""
+    root._gWatch[c].restart()
+    root._step(c, "TERM")
+  }
+
+  // A producer's stream closed. Do NOT treat that as teardown completion — a
+  // descendant can outlive the capped head, so leave the deadline watchdog to
+  // confirm the group is truly reaped (escalating TERM -> KILL as needed).
+  // pgid is taken from the value recorded at onStarted (processId is invalid
+  // once the stream has already closed), never re-read here.
+  function _onDone(c) {
+    var st = root._g[c]
+    if (st.armed) return
+    var g = root._g[c]
+    if (g.pgid === "") { g.armed = false; return }
+    st.armed = true
+    g.start = ""
+    root._gWatch[c].restart()
+    root._step(c, "TERM")
+  }
+  // Record a producer's group id at launch (processId is only valid while
+  // running); teardown later re-uses this so it never reads a cleared pid.
+  function _captureStart(c, proc) {
+    var pid = String(proc.processId || "")
+    if (pid) root._g[c].pgid = pid
+  }
+
+  // Durable reaping: launch the KILL detached so it survives this service being
+  // destroyed alongside the widget (a non-detached child Process would be
+  // cancelled with the object). Identity (starttime) is still verified in bash.
+  function _reapAll() {
+    var order = ["poll", "clock", "hw"]
+    for (var i = 0; i < order.length; i++) {
+      var c = order[i]
+      var st = root._g[c]
+      if (!st.armed || !st.pgid) continue
+      root._gWatch[c].stop()
+      root.killProc.command = [
+        "/bin/sh", "-c",
+        "pid=$1; want=$2\n" +
+        "f=/proc/$pid/stat\n" +
+        "[ -e \"$f\" ] || exit 0\n" +
+        "start=$(/usr/bin/awk '{print $22}' \"$f\" 2>/dev/null || true)\n" +
+        "[ -n \"$want\" ] && [ \"$start\" != \"$want\" ] && exit 0\n" +
+        "kill -KILL -- -$pid 2>/dev/null || true",
+        "grpkill", st.pgid, st.start
+      ]
+      root.killProc.startDetached()
+    }
+  }
+
+  Component.onDestruction: {
+    root._reapAll()
+  }
+
+  property Timer pollWatchdog: Timer {
+    interval: root._timeoutMs
+    repeat: true
+    onTriggered: {
+      var st = root._g["poll"]
+      if (!st.armed) {
+        // Timeout: producer is still running past its deadline.
+        if (root.pollProc.running) root.killProcessGroup(root.pollProc)
+        else stop()
+      } else root._step("poll", "KILL")
+    }
+  }
+
   property Process pollProc: Process {
     // setsid detaches the whole job into its own process group so the watchdog
     // can kill the group -- the shell and every helper it spawned -- instead of
     // only the direct child. Command is fully absolute (no $PATH lookups).
     command: ["/usr/bin/setsid", "/bin/sh", "-c", root.snapshotScript]
+    onStarted: root._captureStart("poll", root.pollProc)
     stdout: StdioCollector {
       id: pollOutput
       waitForEnd: true
       onStreamFinished: {
-        pollWatchdog.stop()
+        root._onDone("poll")
         if (pollOutput.data.length > root._maxBytes) return
         root.parse(pollOutput.text)
       }
     }
-  }
-
-  property Timer pollWatchdog: Timer {
-    interval: root._timeoutMs
-    repeat: false
-    onTriggered: {
-      if (pollProc.running) root.killProcessGroup(pollProc)
-    }
-  }
-
-  // Reusable helper that SIGTERMs then SIGKILLs a whole process group by
-  // process-group id. Setsid makes the launched process its own group leader,
-  // so group id == processId; -pid kills the shell AND every descendant.
-  property Process groupKiller: Process {
-    command: []
-  }
-
-  function killProcessGroup(tgt) {
-    var pid = String(tgt.processId || "")
-    if (!pid || pid === "") return
-    if (root.groupKiller.running) return
-    root.groupKiller.command = [
-      "/bin/sh", "-c",
-      "kill -TERM -- -$1 2>/dev/null; sleep 0.3; kill -KILL -- -$1 2>/dev/null || true",
-      "grpkill", pid
-    ]
-    root.groupKiller.running = true
   }
 
   // Static clock read (NVMe link speed) — one-shot at startup, not per poll.
@@ -216,11 +338,12 @@ QtObject {
 
   property Process clockProc: Process {
     command: ["/usr/bin/setsid", "/bin/sh", "-c", root.clockScript]
+    onStarted: root._captureStart("clock", root.clockProc)
     stdout: StdioCollector {
       id: clockOutput
       waitForEnd: true
       onStreamFinished: {
-        clockWatchdog.stop()
+        root._onDone("clock")
         if (clockOutput.data.length > root._maxBytes) return
         root.parseClocks(clockOutput.text)
       }
@@ -229,9 +352,13 @@ QtObject {
 
   property Timer clockWatchdog: Timer {
     interval: root._timeoutMs
-    repeat: false
+    repeat: true
     onTriggered: {
-      if (clockProc.running) root.killProcessGroup(clockProc)
+      var st = root._g["clock"]
+      if (!st.armed) {
+        if (root.clockProc.running) root.killProcessGroup(root.clockProc)
+        else stop()
+      } else root._step("clock", "KILL")
     }
   }
 
@@ -254,7 +381,11 @@ QtObject {
     return t.length > max ? t.slice(0, max) : t
   }
 
-  Component.onCompleted: clockProc.running = true
+  Component.onCompleted: {
+    root._g["clock"].armed = false
+    clockProc.running = true
+    clockWatchdog.restart()
+  }
 
   // ---- hardware detection script ----
   // Fixed absolute paths. nvidia-smi is primary; falls back to lspci so AMD /
@@ -279,11 +410,12 @@ QtObject {
 
   property Process hwDetectProc: Process {
     command: ["/usr/bin/setsid", "/bin/sh", "-c", root.hwDetectScript]
+    onStarted: root._captureStart("hw", root.hwDetectProc)
     stdout: StdioCollector {
       id: hwDetectOutput
       waitForEnd: true
       onStreamFinished: {
-        hwDetectWatchdog.stop()
+        root._onDone("hw")
         if (hwDetectOutput.data.length > root._maxBytes) return
         root.parseHwDetect(hwDetectOutput.text)
       }
@@ -292,9 +424,13 @@ QtObject {
 
   property Timer hwDetectWatchdog: Timer {
     interval: root._timeoutMs
-    repeat: false
+    repeat: true
     onTriggered: {
-      if (hwDetectProc.running) root.killProcessGroup(hwDetectProc)
+      var st = root._g["hw"]
+      if (!st.armed) {
+        if (root.hwDetectProc.running) root.killProcessGroup(root.hwDetectProc)
+        else stop()
+      } else root._step("hw", "KILL")
     }
   }
 

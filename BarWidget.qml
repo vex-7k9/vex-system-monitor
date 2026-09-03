@@ -188,10 +188,14 @@ BarWidget {
   }
 
   Component.onDestruction: {
-    if (root.cardBgPicker.running) {
+    // Capture identity now (stored at launch), not via a fresh async read of
+    // processId which the stop below would clear first. The detached kill
+    // survives this component being destroyed.
+    var holds = root._pickerHold
+    if (root.cardBgPicker.running || holds.pgid) {
       root.cardBgPicker.running = false
-      Qt.callLater(root.killPickerGroup)
     }
+    if (holds.pgid) root._detachKill(holds.pgid, "KILL")
   }
 
   // ---- hover card background ----
@@ -208,6 +212,11 @@ BarWidget {
     var base = p.replace(/\/+$/, "").split("/")
     return base.length > 0 ? base[base.length - 1] : p
   }
+
+  // Stored identity of the running picker group, captured at launch so
+  // teardown never depends on a cleared processId. start = the leader's
+  // /proc/<pid>/stat starttime, used to reject a reaped-and-reused PGID.
+  property var _pickerHold: ({ pgid: "", start: "" })
 
   function pickCardBackground() {
     if (root.cardBgPicker.running) return
@@ -232,6 +241,30 @@ BarWidget {
   }
 
   property Process cardBgPicker: Process {
+    // Record the picker group's identity as soon as it is created, so teardown
+    // (including destruction) never depends on reading a cleared processId.
+    // A detached helper also snapshots the leader's /proc/<pid>/stat starttime
+    // into a scratch file; the kill helper later re-verifies that starttime so
+    // a reaped-and-reused PGID is never signalled.
+    onStarted: {
+      var pgid = String(root.cardBgPicker.processId || "")
+      root._pickerHold.pgid = pgid
+      root._pickerHold.start = ""
+      if (pgid) {
+        root.cardBgLock.command = [
+          "/bin/sh", "-c",
+          "f=/proc/$1/stat; [ -e \"$f\" ] || exit 0; " +
+          "/usr/bin/awk '{print $22}' \"$f\" > \"/tmp/vex-picker-$1.id\" 2>/dev/null || true",
+          "lock", pgid
+        ]
+        root.cardBgLock.startDetached()
+      }
+    }
+    onRunningChanged: {
+      // When it finishes, chip the recorded identity so a stale kill never
+      // targets a reaped-and-reused PGID later.
+      if (!running) { root._pickerHold.pgid = ""; root._pickerHold.start = "" }
+    }
     stdout: StdioCollector {
       id: cardBgOut
       waitForEnd: true
@@ -247,28 +280,42 @@ BarWidget {
     }
   }
 
-  // Watchdog + group killer: if the picker ever exceeds its bound (the timeout
-  // wrapper already enforces one, this is the backstop) or the widget is
-  // destroyed mid-pick, SIGTERM then SIGKILL the whole process group by id.
-  property Process pickerKiller: Process { command: [] }
-
-  function killPickerGroup() {
-    var pid = String(root.cardBgPicker.processId || "")
-    if (!pid || pid === "") return
-    if (root.pickerKiller.running) return
-    root.pickerKiller.command = [
+  // Durable, identity-checked group teardown. The bash helper re-verifies the
+  // leader's /proc/<pid>/stat starttime against a baseline snapshotted at launch
+  // (in /tmp/vex-picker-<pid>.id); a reaped-and-reused PGID is never signalled.
+  // Launched detached so the signal survives this component's destruction.
+  function _detachKill(pgid, sig) {
+    if (!pgid) return
+    root.cardBgKiller.command = [
       "/bin/sh", "-c",
-      "kill -TERM -- -$1 2>/dev/null; sleep 0.3; kill -KILL -- -$1 2>/dev/null || true",
-      "grpkill", pid
+      "pid=$1; sig=$2; lock=/tmp/vex-picker-$pid.id\n" +
+      "f=/proc/$pid/stat\n" +
+      "[ -e \"$f\" ] || { echo GONE; exit 0; }\n" +
+      "[ -r \"$lock\" ] || exit 0\n" +
+      "want=$(/usr/bin/head -c 64 \"$lock\" 2>/dev/null)\n" +
+      "start=$(/usr/bin/awk '{print $22}' \"$f\" 2>/dev/null || true)\n" +
+      "[ -n \"$want\" ] && [ \"$start\" != \"$want\" ] && exit 0\n" +
+      "kill -$sig -- -$pid 2>/dev/null || true",
+      "grpkill", pgid, sig
     ]
-    root.pickerKiller.running = true
+    root.cardBgKiller.startDetached()
   }
 
+  // The killer/lock Process resources use startDetached, whose runs are
+  // independent; destroying the widget does not cancel an in-flight teardown.
+  property Process cardBgKiller: Process { command: [] }
+  property Process cardBgLock: Process { command: [] }
+
+  // Watchdog backstop: if the picker group is still alive at the bound, KILL it
+  // (the OS timeout wrapper is primary; this guards the whole group).
   Timer {
     id: cardBgWatchdog
     interval: 620000
     repeat: false
-    onTriggered: root.killPickerGroup()
+    onTriggered: {
+      var pgid = root._pickerHold.pgid
+      if (pgid) root._detachKill(pgid, "KILL")
+    }
   }
 
   readonly property real memRatio: stats.memTotalKb > 0 ? stats.memUsedKb / stats.memTotalKb : 0
