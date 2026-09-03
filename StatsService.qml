@@ -184,6 +184,9 @@ QtObject {
   property var _gWatch: ({
     poll: root.pollWatchdog, clock: root.clockWatchdog, hw: root.hwDetectWatchdog
   })
+  // Producer this killProc worker is currently servicing (serializes the
+  // shared bash worker across producers).
+  property string _stepFor: ""
 
   property Process killProc: Process {
     command: []

@@ -149,7 +149,7 @@ QtObject {
         var status = String(text || "").trim()
         if (status.indexOf("GONE") === 0) {
           root._armed = false
-          root._fsWatchdog.stop()
+          root.sensorsWatchdog.stop()
         }
       }
     }
@@ -185,7 +185,7 @@ QtObject {
     root._armed = true
     if (!root._pgid) { root._armed = false; return }
     root._start = ""
-    root._fsWatchdog.restart()
+    root.sensorsWatchdog.restart()
     root._fsStep("TERM")
   }
 
@@ -198,7 +198,7 @@ QtObject {
     if (!root._pgid) return
     root._armed = true
     root._start = ""
-    root._fsWatchdog.restart()
+    root.sensorsWatchdog.restart()
     root._fsStep("TERM")
   }
 
@@ -219,7 +219,7 @@ QtObject {
   // (a non-detached child Process would be cancelled with the object).
   Component.onDestruction: {
     if (root._armed && root._pgid) {
-      root._fsWatchdog.stop()
+      root.sensorsWatchdog.stop()
       if (root.fanKillProc.running) return
       var pid = root._pgid
       var want = root._start
